@@ -13,9 +13,15 @@ import type {
 export interface DriverLinkingApi {
   getProfile(signal?: AbortSignal): Promise<ProviderProfile>;
   /** Retorna `null` quando nenhuma conta é encontrada. */
-  findAccount(identifier: string, signal?: AbortSignal): Promise<DriverAccount | null>;
+  findAccount(
+    identifier: string,
+    signal?: AbortSignal,
+  ): Promise<DriverAccount | null>;
   linkDriver(driverId: string): Promise<OrganizationDriver>;
-  listOrganizationDrivers(search?: string, signal?: AbortSignal): Promise<OrganizationDriver[]>;
+  listOrganizationDrivers(
+    search?: string,
+    signal?: AbortSignal,
+  ): Promise<OrganizationDriver[]>;
   createDriver(payload: NewDriverPayload): Promise<OrganizationDriver>;
 }
 
@@ -57,13 +63,17 @@ export function createDriverLinkingApi({
 
     const response = await fetch(`${baseUrl}${path}`, { ...init, headers });
     if (!response.ok) {
-      throw new ApiError(response.status, response.statusText || "Falha na requisição");
+      throw new ApiError(
+        response.status,
+        response.statusText || "Falha na requisição",
+      );
     }
     return (await response.json()) as T;
   }
 
   return {
-    getProfile: (signal) => request<ProviderProfile>(ENDPOINTS.profile, { signal }),
+    getProfile: (signal) =>
+      request<ProviderProfile>(ENDPOINTS.profile, { signal }),
 
     async findAccount(identifier, signal) {
       try {
@@ -86,7 +96,9 @@ export function createDriverLinkingApi({
 
     listOrganizationDrivers: (search, signal) => {
       const query = search ? `?search=${encodeURIComponent(search)}` : "";
-      return request<OrganizationDriver[]>(`${ENDPOINTS.drivers}${query}`, { signal });
+      return request<OrganizationDriver[]>(`${ENDPOINTS.drivers}${query}`, {
+        signal,
+      });
     },
 
     createDriver(payload) {
@@ -95,7 +107,10 @@ export function createDriverLinkingApi({
       const body = new FormData();
       Object.entries(fields).forEach(([key, value]) => body.append(key, value));
       if (photo) body.append("photo", photo);
-      return request<OrganizationDriver>(ENDPOINTS.drivers, { method: "POST", body });
+      return request<OrganizationDriver>(ENDPOINTS.drivers, {
+        method: "POST",
+        body,
+      });
     },
   };
 }
