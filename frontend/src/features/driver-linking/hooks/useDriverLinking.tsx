@@ -22,17 +22,16 @@ export function useDriverLinking(api: DriverLinkingApi) {
   // Motoristas da organização
   const [teamQuery, setTeamQuery] = useState("");
   const [drivers, setDrivers] = useState<OrganizationDriver[]>([]);
-  const [driversStatus, setDriversStatus] = useState<RequestStatus>("idle");
+  const [driversStatus, setDriversStatus] = useState<RequestStatus>("loading");
 
-  const loadDrivers = useCallback(
-    async (search?: string, signal?: AbortSignal) => {
+  const reloadDrivers = useCallback(
+    async (search?: string) => {
       setDriversStatus("loading");
       try {
-        const list = await api.listOrganizationDrivers(search, signal);
+        const list = await api.listOrganizationDrivers(search);
         setDrivers(list);
         setDriversStatus("ready");
       } catch {
-        if (signal?.aborted) return;
         setDriversStatus("error");
       }
     },
@@ -43,13 +42,23 @@ export function useDriverLinking(api: DriverLinkingApi) {
     const controller = new AbortController();
     api
       .getProfile(controller.signal)
-      .then(setProfile)
+      .then(profile => {
+        if (!controller.signal.aborted) setProfile(profile);
+      })
       .catch(() => {
         /* sem perfil: o layout renderiza com valores vazios */
       });
-    void loadDrivers(undefined, controller.signal);
+    api.listOrganizationDrivers(undefined, controller.signal)
+      .then(list => {
+        if (controller.signal.aborted) return;
+        setDrivers(list);
+        setDriversStatus("ready");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setDriversStatus("error");
+      });
     return () => controller.abort();
-  }, [api, loadDrivers]);
+  }, [api]);
 
   const searchAccount = useCallback(async () => {
     const value = identifier.trim();
@@ -75,26 +84,26 @@ export function useDriverLinking(api: DriverLinkingApi) {
       setFoundAccount(null);
       setSearchStatus("idle");
       setIdentifier("");
-      await loadDrivers(teamQuery.trim() || undefined);
+      await reloadDrivers(teamQuery.trim() || undefined);
     } catch {
       setLinkError(true);
     } finally {
       setIsLinking(false);
     }
-  }, [api, foundAccount, loadDrivers, teamQuery]);
+  }, [api, foundAccount, reloadDrivers, teamQuery]);
 
   const searchTeam = useCallback(
-    () => loadDrivers(teamQuery.trim() || undefined),
-    [loadDrivers, teamQuery],
+    () => reloadDrivers(teamQuery.trim() || undefined),
+    [reloadDrivers, teamQuery],
   );
 
   /** Lança erro em caso de falha, para o modal exibir a mensagem. */
   const createDriver = useCallback(
     async (payload: NewDriverPayload) => {
       await api.createDriver(payload);
-      await loadDrivers(teamQuery.trim() || undefined);
+      await reloadDrivers(teamQuery.trim() || undefined);
     },
-    [api, loadDrivers, teamQuery],
+    [api, reloadDrivers, teamQuery],
   );
 
   return {

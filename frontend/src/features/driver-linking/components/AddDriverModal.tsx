@@ -12,13 +12,13 @@ import { LuUpload } from "react-icons/lu";
 import type { NewDriverPayload, SelectOption } from "../types";
 
 /** Opções padrão dos selects; podem ser substituídas por dados da API via props. */
-export const defaultGenderOptions: SelectOption[] = [
+const defaultGenderOptions: SelectOption[] = [
   { value: "masculino", label: "Masculino" },
   { value: "feminino", label: "Feminino" },
   { value: "outro", label: "Outro" },
 ];
 
-export const defaultCnhCategoryOptions: SelectOption[] = ["A", "B", "C", "D", "E"].map(
+const defaultCnhCategoryOptions: SelectOption[] = ["A", "B", "C", "D", "E"].map(
   (value) => ({ value, label: value }),
 );
 
