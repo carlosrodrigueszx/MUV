@@ -53,7 +53,7 @@ export function Navbar({ links = [], showAuthButtons = true }: NavbarProps) {
               Entrar
             </Link>
             <Link
-              to="/entrar"
+              to="/cadastro"
               className="bg-[#1A5344] hover:bg-[#144236] text-white text-[13px] font-semibold px-4 py-2 rounded-lg transition-colors shadow-xs"
             >
               Criar conta
@@ -93,7 +93,7 @@ export function Navbar({ links = [], showAuthButtons = true }: NavbarProps) {
                 Entrar
               </Link>
               <Link
-                to="/entrar"
+                to="/cadastro"
                 className="text-center text-sm font-semibold bg-[#1A5344] text-white py-2.5 rounded-lg"
               >
                 Criar conta
