@@ -10,7 +10,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AuthServiceTest {
-    // Invalid input must be rejected before reaching the persistence or cryptography dependencies.
     private final AuthService service = new AuthService(null, null, null, event -> {}, Clock.systemUTC());
 
     @Test
