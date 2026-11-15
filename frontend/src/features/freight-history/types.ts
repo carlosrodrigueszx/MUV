@@ -31,7 +31,6 @@ export interface FreightHistoryRecord {
   month: string;
   agreedValue: string;
   status: FreightStatus;
-  visibleTo: AccountProfile[];
   request: {
     openedAt: string;
     requestedBy: string;
