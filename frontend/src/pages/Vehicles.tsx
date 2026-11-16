@@ -1,4 +1,3 @@
-
 import { useMemo, useState } from "react";
 import { ProviderLayout } from "../components/layout/ProviderLayout";
 import { createVehicleMockApi } from "../features/vehicles/api/vehicleMockApi";
@@ -9,13 +8,8 @@ import type { Vehicle, NewVehiclePayload } from "../features/vehicles/types";
 
 export default function Vehicles() {
   const api = useMemo(() => createVehicleMockApi(), []);
-  const {
-    vehicles,
-    loading,
-    error,
-    createVehicle,
-    updateVehicle,
-  } = useVehicles(api);
+  const { vehicles, loading, error, createVehicle, updateVehicle } =
+    useVehicles(api);
 
   const [formOpen, setFormOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
@@ -49,9 +43,6 @@ export default function Vehicles() {
       <div className="flex flex-col gap-7">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-bold tracking-wide text-[#17695b]">
-              RF004 / MUV
-            </p>
             <h1 className="mt-2 text-3xl font-bold text-[#1d2d32]">
               Gestão de veículos
             </h1>
@@ -89,10 +80,7 @@ export default function Vehicles() {
         ) : error ? (
           <p className="text-sm text-red-600">{error}</p>
         ) : (
-          <VehicleList
-            vehicles={vehicles}
-            onEdit={handleEditVehicle}
-          />
+          <VehicleList vehicles={vehicles} onEdit={handleEditVehicle} />
         )}
       </div>
     </ProviderLayout>

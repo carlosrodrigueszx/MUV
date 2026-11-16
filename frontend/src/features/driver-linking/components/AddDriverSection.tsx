@@ -10,7 +10,7 @@ interface AddDriverSectionProps {
   account: DriverAccount | null;
   onLink: () => void;
   isLinking: boolean;
-  linkError: boolean;
+  linkError: string | null;
 }
 
 const outlineButton =
@@ -112,7 +112,7 @@ export function AddDriverSection({
                 role="alert"
                 className="text-[12px] leading-[17px] text-[#637479]"
               >
-                Não foi possível vincular. Tente novamente.
+                {linkError}
               </p>
             )}
           </div>

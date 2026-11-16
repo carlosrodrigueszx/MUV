@@ -25,4 +25,16 @@ public class Motorista {
 
     @Column(name = "usuario_id", unique = true)
     private Long usuarioId;
+
+    @Column(name = "cpf_indice", unique = true)
+    private String cpfIndice;
+
+    @Column(name = "dados_cifrados")
+    private String dadosCifrados;
+
+    @Column(name = "foto")
+    private byte[] foto;
+
+    @Column(name = "foto_tipo")
+    private String fotoTipo;
 }
