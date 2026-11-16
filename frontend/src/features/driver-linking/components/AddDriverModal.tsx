@@ -18,7 +18,7 @@ const defaultGenderOptions: SelectOption[] = [
   { value: "outro", label: "Outro" },
 ];
 
-const defaultCnhCategoryOptions: SelectOption[] = ["A", "B", "C", "D", "E"].map(
+const defaultCnhCategoryOptions: SelectOption[] = ["A", "B", "AB", "C", "AC", "D", "AD", "E", "AE"].map(
   (value) => ({ value, label: value }),
 );
 
@@ -190,8 +190,8 @@ function AddDriverModalContent({
     try {
       await onSubmit(form);
       onClose();
-    } catch {
-      setError("Não foi possível adicionar o motorista. Tente novamente.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Não foi possível adicionar o motorista.");
     } finally {
       setIsSubmitting(false);
     }
@@ -233,7 +233,7 @@ function AddDriverModalContent({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/png,image/jpeg,image/gif"
           className="hidden"
           onChange={handlePhotoChange}
         />
@@ -288,6 +288,8 @@ function AddDriverModalContent({
             <input
               id={id("cnh")}
               required
+              pattern="[0-9]{11}"
+              maxLength={11}
               value={form.cnh}
               onChange={setField("cnh")}
               placeholder="CNH do Motorista"
@@ -334,6 +336,8 @@ function AddDriverModalContent({
               id={id("password")}
               type="password"
               required
+              minLength={8}
+              maxLength={72}
               autoComplete="new-password"
               value={form.password}
               onChange={setField("password")}
@@ -347,6 +351,8 @@ function AddDriverModalContent({
               id={id("password-confirmation")}
               type="password"
               required
+              minLength={8}
+              maxLength={72}
               autoComplete="new-password"
               value={form.passwordConfirmation}
               onChange={setField("passwordConfirmation")}

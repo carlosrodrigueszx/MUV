@@ -1,8 +1,16 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AccountPage, LoginPage, RecoveryPage, RegisterPage, ResetPage } from "../features/auth/AuthPages";
+import {
+  AccountPage,
+  LoginPage,
+  RecoveryPage,
+  RegisterPage,
+  ResetPage,
+} from "../features/auth/AuthPages";
 import Home from "../pages/Home";
 import Vehicles from "../pages/Vehicles";
+import DriverLinking from "../pages/DriverLinking";
+import FreightHistory from "../pages/FreightHistory";
 import ClientePrestadores from "../pages/ClientePrestadores";
 
 export const Router: React.FC = () => {
@@ -17,6 +25,9 @@ export const Router: React.FC = () => {
         <Route path="/redefinir-senha" element={<ResetPage />} />
         <Route path="/conta" element={<AccountPage />} />
         <Route path="/prestador/veiculos" element={<Vehicles />} />
+        <Route path="/prestador/motoristas" element={<DriverLinking />} />
+        <Route path="/prestador/historico" element={<FreightHistory />} />
+        <Route path="/cliente/historico" element={<FreightHistory />} />
       </Routes>
     </BrowserRouter>
   );

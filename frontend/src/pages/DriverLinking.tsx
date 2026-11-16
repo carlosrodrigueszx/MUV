@@ -30,12 +30,9 @@ export default function DriverLinking({ api: injectedApi }: DriverLinkingProps) 
       pageTitle="Vincular e verificar motorista"
       activeNavKey="drivers"
       organizationName={profile?.organizationName}
-      organizationVerified={profile?.verified}
-      avatarUrl={profile?.avatarUrl}
-      isOnline={profile?.isOnline}
-      navBadges={{ requests: profile?.pendingRequestsCount ?? 0 }}
     >
       <div className="flex flex-col gap-6">
+        {driverLinking.profileError && <p role="alert">{driverLinking.profileError}</p>}
         <h1 className="text-[30px] leading-[1.45] font-bold text-[#1d2d32]">
           Sua equipe, vinculada e verificada
         </h1>
@@ -62,6 +59,7 @@ export default function DriverLinking({ api: injectedApi }: DriverLinkingProps) 
             onSearch={driverLinking.searchTeam}
             drivers={driverLinking.drivers}
             status={driverLinking.driversStatus}
+            onVerify={driverLinking.verifyDriver}
           />
         </div>
       </div>
