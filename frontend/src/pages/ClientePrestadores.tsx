@@ -1,23 +1,14 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import bellIcon from "../assets/figma/bell.svg";
 import chevronDownIcon from "../assets/figma/chevron-down.svg";
 import routeIcon from "../assets/figma/route.svg";
-
-type ProviderType = "Empresa" | "Autônomo";
-type ProviderFilter = "Todos" | ProviderType;
-
-interface Provider {
-  id: string;
-  name: string;
-  type: ProviderType;
-  regions: string;
-  description: string;
-  vehicle: string;
-  capacity: string;
-}
-
-const providers: Provider[] = [];
+import {
+  searchProviders,
+  type FreightModality,
+  type ProviderSearchResult,
+  type ProviderType,
+} from "../features/provider-search/api";
 
 interface SelectFieldProps {
   id: string;
@@ -49,34 +40,66 @@ function SelectField({
   );
 }
 
+function parseRegion(value: string) {
+  const region = value.trim();
+  if (!region) return {};
+
+  const cityAndState = region.match(/^(.+?)\s*[,/]\s*([a-z]{2})$/i);
+  if (cityAndState) {
+    return { cidade: cityAndState[1].trim(), estado: cityAndState[2].toUpperCase() };
+  }
+  if (/^[a-z]{2}$/i.test(region)) return { estado: region.toUpperCase() };
+  return { cidade: region };
+}
+
 interface ProviderCardProps {
-  provider: Provider;
+  provider: ProviderSearchResult;
   onAction: (message: string) => void;
 }
 
 function ProviderCard({ provider, onAction }: ProviderCardProps) {
+  const authorizedModalities = provider.modalidadesAutorizadas
+    .map((modality) => modality === "PESSOA" ? "Pessoas" : "Encomendas")
+    .join(" e ");
+
   return (
     <article
-      id={provider.id}
+      id={`prestador-${provider.id}`}
       className="flex min-h-[319px] min-w-0 flex-col gap-4 rounded-[14px] border border-[#dfe7e8] bg-white p-6 max-md:min-h-0"
     >
-      <h2 className="w-full text-[19px] font-semibold leading-[1.45] text-[#1d2d32]">
-        {provider.name}
-      </h2>
-      <div className="flex min-h-[75px] w-full flex-col justify-center gap-1 rounded-[14px] bg-[#e5f2ee] px-4 py-3 leading-[1.45]">
-        <p className="text-[14px] font-semibold text-[#104e43]">
-          Autorizado para encomendas
-        </p>
-        <p className="text-[13px] font-normal text-[#1d2d32]">
-          {provider.regions}
+      <div>
+        <h2 className="w-full text-[19px] font-semibold leading-[1.45] text-[#1d2d32]">
+          {provider.nome}
+        </h2>
+        <p className="text-[13px] text-[#637479]">
+          {provider.tipo === "EMPRESA" ? "Empresa" : "Autônomo"}
         </p>
       </div>
-      <p className="w-full text-[14px] font-normal leading-[1.45] text-[#1d2d32]">
-        {provider.description}
-      </p>
-      <div className="w-full text-[14px] font-semibold leading-[1.45] text-[#1d2d32]">
-        <p>{provider.vehicle}</p>
-        <p>{provider.capacity}</p>
+      <div className="flex min-h-[75px] w-full flex-col justify-center gap-1 rounded-[14px] bg-[#e5f2ee] px-4 py-3 leading-[1.45]">
+        <p className="text-[14px] font-semibold text-[#104e43]">
+          Autorizado para {authorizedModalities}
+        </p>
+        <p className="text-[13px] font-normal text-[#1d2d32]">
+          {provider.regioesAtendidas
+            .map(({ cidade, estado }) => `${cidade} - ${estado}`)
+            .join(", ")}
+        </p>
+      </div>
+      <div className="flex w-full flex-col gap-3 text-[14px] leading-[1.45] text-[#1d2d32]">
+        <p className="font-semibold">Veículos disponíveis</p>
+        {provider.veiculosDisponiveis.map((vehicle) => (
+          <div key={vehicle.id}>
+            <p className="font-semibold">
+              {vehicle.marca} {vehicle.modelo} ({vehicle.ano})
+            </p>
+            {vehicle.capacidadePassageiros > 0 && (
+              <p>Até {vehicle.capacidadePassageiros} passageiros</p>
+            )}
+            {vehicle.capacidadeCargaKg > 0 && (
+              <p>Até {vehicle.capacidadeCargaKg} kg de carga</p>
+            )}
+          </div>
+        ))}
       </div>
       <div className="flex flex-wrap items-start gap-5">
         <button
@@ -103,24 +126,58 @@ function ProviderCard({ provider, onAction }: ProviderCardProps) {
 }
 
 export default function ClientePrestadores() {
-  const [service, setService] = useState("");
+  const [service, setService] = useState<FreightModality | "">("");
   const [region, setRegion] = useState("");
-  const [providerType, setProviderType] = useState<ProviderFilter>("Todos");
-  const [appliedProviderType, setAppliedProviderType] =
-    useState<ProviderFilter>("Todos");
+  const [providerType, setProviderType] = useState<ProviderType | "">("");
+  const [providers, setProviders] = useState<ProviderSearchResult[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
+  const activeSearch = useRef<AbortController | null>(null);
 
-  const visibleProviders = providers.filter(
-    (provider) =>
-      appliedProviderType === "Todos" ||
-      provider.type === appliedProviderType,
-  );
+  useEffect(() => () => {
+    activeSearch.current?.abort();
+    activeSearch.current = null;
+  }, []);
 
-  function handleSearch(event: FormEvent<HTMLFormElement>) {
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setAppliedProviderType(providerType);
-    setFeedback("A busca será conectada à API quando ela estiver disponível.");
+    activeSearch.current?.abort();
+    const controller = new AbortController();
+    activeSearch.current = controller;
+    setLoading(true);
+    setError("");
+    setHasSearched(true);
+
+    const filters = parseRegion(region);
+    try {
+      const results = await searchProviders({
+        ...filters,
+        ...(service && { modalidade: service }),
+        ...(providerType && { tipo: providerType }),
+      }, controller.signal);
+      if (activeSearch.current === controller) setProviders(results);
+    } catch (searchError) {
+      if (
+        activeSearch.current === controller &&
+        !(searchError instanceof DOMException && searchError.name === "AbortError")
+      ) {
+        setError(
+          searchError instanceof Error
+            ? searchError.message
+            : "Não foi possível consultar os prestadores.",
+        );
+      }
+    } finally {
+      if (activeSearch.current === controller) {
+        activeSearch.current = null;
+        setLoading(false);
+      }
+    }
   }
+
+  const resultCount = providers.length;
 
   return (
     <div className="min-h-screen bg-[#f5f7f8] text-[#1d2d32] [font-family:Inter,'Noto_Sans',Arial,sans-serif]">
@@ -249,13 +306,24 @@ export default function ClientePrestadores() {
               onSubmit={handleSearch}
               className="grid w-full grid-cols-[repeat(3,minmax(0,1fr))_99px] items-end gap-5 max-md:grid-cols-1"
             >
-              <SelectField
-                id="service"
-                label="Modalidade"
-                value={service}
-                onChange={setService}
-                placeholder="Informe a modalidade"
-              />
+              <label className="flex min-w-0 flex-col gap-2 text-[12px] font-semibold leading-[17px] text-[#637479]" htmlFor="service">
+                Modalidade
+                <select
+                  id="service"
+                  value={service}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value === "" || value === "PESSOA" || value === "ENCOMENDA") {
+                      setService(value);
+                    }
+                  }}
+                  className="h-[46px] w-full rounded-[8px] border border-[#dfe7e8] bg-[#f5f7f8] px-3 text-[14px] font-normal leading-5 text-[#1d2d32] outline-none transition focus:border-[#17695b] focus:ring-2 focus:ring-[#17695b]/15"
+                >
+                  <option value="">Todas</option>
+                  <option value="PESSOA">Pessoas</option>
+                  <option value="ENCOMENDA">Encomendas</option>
+                </select>
+              </label>
               <SelectField
                 id="region"
                 label="Região de atendimento"
@@ -271,19 +339,15 @@ export default function ClientePrestadores() {
                     value={providerType}
                     onChange={(event) => {
                       const value = event.target.value;
-                      if (
-                        value === "Todos" ||
-                        value === "Empresa" ||
-                        value === "Autônomo"
-                      ) {
+                      if (value === "" || value === "EMPRESA" || value === "AUTONOMO") {
                         setProviderType(value);
                       }
                     }}
                     className="h-[46px] w-full appearance-none rounded-[8px] border border-[#dfe7e8] bg-[#f5f7f8] px-3 pr-9 text-[14px] font-normal leading-5 text-[#1d2d32] outline-none transition focus:border-[#17695b] focus:ring-2 focus:ring-[#17695b]/15"
                   >
-                    <option value="Todos">Todos</option>
-                    <option value="Empresa">Empresa</option>
-                    <option value="Autônomo">Autônomo</option>
+                    <option value="">Todos</option>
+                    <option value="EMPRESA">Empresa</option>
+                    <option value="AUTONOMO">Autônomo</option>
                   </select>
                   <span aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#1d2d32]">
                     ▾
@@ -301,21 +365,33 @@ export default function ClientePrestadores() {
         </section>
 
         <h2 className="text-[17px] font-semibold leading-[1.45] text-[#1d2d32]">
-          {visibleProviders.length > 0
-            ? `${visibleProviders.length} ${
-                visibleProviders.length === 1
+          {loading
+            ? "Consultando prestadores..."
+            : resultCount > 0
+            ? `${resultCount} ${
+                resultCount === 1
                   ? "prestador atende"
                   : "prestadores atendem"
               } sua rota`
             : "Prestadores disponíveis"}
         </h2>
 
-        {visibleProviders.length > 0 ? (
+        {loading ? (
+          <section aria-live="polite" className="rounded-[14px] border border-[#dfe7e8] bg-white p-6">
+            <p className="text-[14px] leading-[1.45] text-[#637479]">
+              Consultando prestadores...
+            </p>
+          </section>
+        ) : error ? (
+          <section role="alert" className="rounded-[14px] border border-[#dfe7e8] bg-white p-6">
+            <p className="text-[14px] leading-[1.45] text-[#1d2d32]">{error}</p>
+          </section>
+        ) : resultCount > 0 ? (
           <section
             aria-label="Prestadores que atendem sua rota"
             className="grid w-full grid-cols-2 items-start gap-5 max-md:grid-cols-1"
           >
-            {visibleProviders.map((provider) => (
+            {providers.map((provider) => (
               <ProviderCard
                 key={provider.id}
                 provider={provider}
@@ -329,8 +405,9 @@ export default function ClientePrestadores() {
             className="rounded-[14px] border border-[#dfe7e8] bg-white p-6"
           >
             <p className="text-[14px] leading-[1.45] text-[#637479]">
-              Os prestadores serão exibidos aqui quando a conexão com a API
-              estiver disponível.
+              {hasSearched
+                ? "Nenhum prestador encontrado para os filtros informados."
+                : "Informe os filtros desejados e pesquise para consultar os prestadores."}
             </p>
           </section>
         )}
