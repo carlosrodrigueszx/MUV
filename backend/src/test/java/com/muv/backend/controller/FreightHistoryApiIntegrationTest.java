@@ -4,10 +4,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -26,7 +33,7 @@ class FreightHistoryApiIntegrationTest {
     @Test
     void returnsFilteredHistoryWithProposalsAndTimeline() throws Exception {
         mvc.perform(get("/api/historico-fretes")
-                        .header("X-User-Id", 914001L)
+                        .session(authenticatedSession("cliente-rf014@example.test"))
                         .param("perfil", "CLIENTE")
                         .param("modalidade", "Pessoas")
                         .param("situacao", "Concluído")
@@ -47,7 +54,7 @@ class FreightHistoryApiIntegrationTest {
     @Test
     void enforcesAccountScopeAtHttpBoundary() throws Exception {
         mvc.perform(get("/api/historico-fretes")
-                        .header("X-User-Id", 914004L)
+                        .session(authenticatedSession("outro-cliente-rf014@example.test"))
                         .param("perfil", "CLIENTE")
                         .param("periodo", "2026-11"))
                 .andExpect(status().isOk())
@@ -63,9 +70,47 @@ class FreightHistoryApiIntegrationTest {
                 .andExpect(status().isUnauthorized());
 
         mvc.perform(get("/api/historico-fretes")
-                        .header("X-User-Id", 914001L)
+                        .session(authenticatedSession("cliente-rf014@example.test"))
                         .param("perfil", "CLIENTE")
                         .param("modalidade", "Mudança"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectsProfileNotOwnedByAuthenticatedAccount() throws Exception {
+        mvc.perform(get("/api/historico-fretes")
+                        .session(authenticatedSession("cliente-rf014@example.test"))
+                        .param("perfil", "PRESTADOR"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void returnsOnlyProfilesOwnedByAuthenticatedAccount() throws Exception {
+        mvc.perform(get("/api/historico-fretes/perfis")
+                        .session(authenticatedSession("cliente-rf014@example.test")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0]").value("CLIENTE"));
+
+        mvc.perform(get("/api/historico-fretes/perfis")
+                        .session(authenticatedSession("prestador-alfa-rf014@example.test")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0]").value("PRESTADOR"));
+    }
+
+    private MockHttpSession authenticatedSession(String email) {
+        var authentication = new UsernamePasswordAuthenticationToken(
+                email,
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_USUARIO")));
+        var context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        var session = new MockHttpSession();
+        session.setAttribute(
+                HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                context);
+        return session;
     }
 }

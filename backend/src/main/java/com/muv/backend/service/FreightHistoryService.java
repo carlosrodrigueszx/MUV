@@ -3,6 +3,7 @@ package com.muv.backend.service;
 import com.muv.backend.dto.FreightHistoryProfile;
 import com.muv.backend.dto.FreightHistoryResponse;
 import com.muv.backend.repository.FreightHistoryQueryRepository;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -26,6 +27,15 @@ public class FreightHistoryService {
         this.repository = repository;
     }
 
+    public List<FreightHistoryProfile> availableProfiles(Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new IllegalArgumentException("A conta autenticada é obrigatória.");
+        }
+        return List.of(FreightHistoryProfile.values()).stream()
+                .filter(profile -> repository.hasProfile(userId, profile))
+                .toList();
+    }
+
     public List<FreightHistoryResponse> list(
             Long userId,
             FreightHistoryProfile profile,
@@ -37,6 +47,9 @@ public class FreightHistoryService {
         }
         if (profile == null) {
             throw new IllegalArgumentException("O perfil de consulta é obrigatório.");
+        }
+        if (!repository.hasProfile(userId, profile)) {
+            throw new AccessDeniedException("A conta não possui o perfil solicitado.");
         }
 
         String normalizedModality = normalizeModality(modality);

@@ -1,43 +1,95 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   AccountNavbar,
+  FreightHistoryApiError,
   HistoryDetails,
   HistoryFilters,
   HistoryList,
   createFreightHistoryService,
+  type AccountProfile,
   type FreightHistoryFilters,
   type FreightHistoryRecord,
 } from "../features/freight-history";
 
-const initialFilters: FreightHistoryFilters = {
-  profile: "cliente",
-  modality: "todas",
-  status: "todas",
-  month: "2026-11",
-};
+function initialFilters(profile: FreightHistoryFilters["profile"]): FreightHistoryFilters {
+  return {
+    profile,
+    modality: "todas",
+    status: "todas",
+    month: "2026-11",
+  };
+}
 
 export default function FreightHistory() {
+  const location = useLocation();
+  const routeProfile: FreightHistoryFilters["profile"] = location.pathname.startsWith("/prestador/")
+    ? "prestador"
+    : "cliente";
+
+  return <FreightHistoryContent key={routeProfile} routeProfile={routeProfile} />;
+}
+
+function FreightHistoryContent({
+  routeProfile,
+}: {
+  routeProfile: FreightHistoryFilters["profile"];
+}) {
+  const navigate = useNavigate();
   const historyService = useMemo(
     () =>
       createFreightHistoryService({
         baseUrl: import.meta.env.VITE_API_URL ?? "",
-        // Adaptador temporário e isolado: o RF001 poderá fornecer estes valores
-        // sem alterar o contrato do serviço nem os componentes desta tela.
-        getUserId: () =>
-          sessionStorage.getItem("muv_user_id") ?? import.meta.env.VITE_USER_ID ?? null,
-        getAuthToken: () => sessionStorage.getItem("muv_access_token"),
       }),
     [],
   );
-  const [draftFilters, setDraftFilters] = useState(initialFilters);
-  const [appliedFilters, setAppliedFilters] = useState(initialFilters);
+  const [draftFilters, setDraftFilters] = useState(() => initialFilters(routeProfile));
+  const [appliedFilters, setAppliedFilters] = useState(() => initialFilters(routeProfile));
   const [records, setRecords] = useState<FreightHistoryRecord[]>([]);
+  const [allowedProfiles, setAllowedProfiles] = useState<AccountProfile[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [requestVersion, setRequestVersion] = useState(0);
 
   useEffect(() => {
+    const controller = new AbortController();
+
+    void historyService
+      .profiles(controller.signal)
+      .then((profiles) => {
+        if (profiles.length === 0) {
+          throw new Error("A conta autenticada não possui um perfil disponível para consulta.");
+        }
+        if (!profiles.includes(routeProfile)) {
+          navigate(`/${profiles[0]}/historico`, { replace: true });
+          return;
+        }
+        setAllowedProfiles(profiles);
+      })
+      .catch((requestError: unknown) => {
+        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        if (requestError instanceof FreightHistoryApiError && requestError.status === 401) {
+          navigate("/entrar", {
+            replace: true,
+            state: { notice: "Entre na sua conta para consultar o histórico de fretes." },
+          });
+          return;
+        }
+        setLoading(false);
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Não foi possível verificar os perfis disponíveis.",
+        );
+      });
+
+    return () => controller.abort();
+  }, [historyService, navigate, routeProfile]);
+
+  useEffect(() => {
+    if (!allowedProfiles || !allowedProfiles.includes(appliedFilters.profile)) return;
+
     const controller = new AbortController();
 
     void historyService
@@ -50,6 +102,13 @@ export default function FreightHistory() {
       })
       .catch((requestError: unknown) => {
         if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        if (requestError instanceof FreightHistoryApiError && requestError.status === 401) {
+          navigate("/entrar", {
+            replace: true,
+            state: { notice: "Entre na sua conta para consultar o histórico de fretes." },
+          });
+          return;
+        }
         setRecords([]);
         setSelectedId(null);
         setError(
@@ -63,7 +122,7 @@ export default function FreightHistory() {
       });
 
     return () => controller.abort();
-  }, [appliedFilters, historyService, requestVersion]);
+  }, [allowedProfiles, appliedFilters, historyService, navigate, requestVersion]);
 
   const selectedRecord = records.find((record) => record.id === selectedId) ?? null;
 
@@ -82,8 +141,13 @@ export default function FreightHistory() {
         <div className="mt-7 space-y-6">
           <HistoryFilters
             filters={draftFilters}
+            allowedProfiles={allowedProfiles ?? [routeProfile]}
             onChange={setDraftFilters}
             onSubmit={() => {
+              if (draftFilters.profile !== routeProfile) {
+                navigate(`/${draftFilters.profile}/historico`);
+                return;
+              }
               setLoading(true);
               setError(null);
               setAppliedFilters(draftFilters);

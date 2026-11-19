@@ -25,6 +25,9 @@ class JdbcFreightHistoryQueryRepositoryTest {
 
     @Test
     void restrictsClientHistoryAndAppliesModalityStatusAndPeriodFilters() {
+        assertThat(repository.hasProfile(914001L, FreightHistoryProfile.CLIENTE)).isTrue();
+        assertThat(repository.hasProfile(914001L, FreightHistoryProfile.PRESTADOR)).isFalse();
+
         var result = repository.findHistory(
                 914001L,
                 FreightHistoryProfile.CLIENTE,
@@ -48,6 +51,9 @@ class JdbcFreightHistoryQueryRepositoryTest {
 
     @Test
     void exposesOnlyRecordsAndProposalsAuthorizedForProvider() {
+        assertThat(repository.hasProfile(914002L, FreightHistoryProfile.PRESTADOR)).isTrue();
+        assertThat(repository.hasProfile(914002L, FreightHistoryProfile.CLIENTE)).isFalse();
+
         var history = repository.findHistory(
                 914002L,
                 FreightHistoryProfile.PRESTADOR,

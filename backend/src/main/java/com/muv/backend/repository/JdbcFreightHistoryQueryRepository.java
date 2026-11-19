@@ -11,6 +11,14 @@ import java.util.List;
 @Repository
 public class JdbcFreightHistoryQueryRepository implements FreightHistoryQueryRepository {
 
+    private static final String CLIENT_PROFILE_SQL = """
+            SELECT EXISTS (SELECT 1 FROM passageiro WHERE id = :userId)
+            """;
+
+    private static final String PROVIDER_PROFILE_SQL = """
+            SELECT EXISTS (SELECT 1 FROM prestador WHERE id = :userId)
+            """;
+
     private static final String HISTORY_SQL = """
             SELECT
                 s.id AS solicitacao_id,
@@ -88,6 +96,17 @@ public class JdbcFreightHistoryQueryRepository implements FreightHistoryQueryRep
 
     public JdbcFreightHistoryQueryRepository(JdbcClient jdbcClient) {
         this.jdbcClient = jdbcClient;
+    }
+
+    @Override
+    public boolean hasProfile(Long userId, FreightHistoryProfile profile) {
+        String sql = profile == FreightHistoryProfile.CLIENTE
+                ? CLIENT_PROFILE_SQL
+                : PROVIDER_PROFILE_SQL;
+        return jdbcClient.sql(sql)
+                .param("userId", userId)
+                .query(Boolean.class)
+                .single();
     }
 
     @Override

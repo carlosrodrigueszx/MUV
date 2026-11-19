@@ -7,4 +7,4 @@ export {
   FreightHistoryApiError,
 } from "./services/freightHistoryService";
 export type { FreightHistoryService } from "./services/freightHistoryService";
-export type { FreightHistoryFilters, FreightHistoryRecord } from "./types";
+export type { AccountProfile, FreightHistoryFilters, FreightHistoryRecord } from "./types";

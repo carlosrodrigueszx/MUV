@@ -9,6 +9,8 @@ import java.util.List;
 
 public interface FreightHistoryQueryRepository {
 
+    boolean hasProfile(Long userId, FreightHistoryProfile profile);
+
     List<HistoryRow> findHistory(
             Long userId,
             FreightHistoryProfile profile,
