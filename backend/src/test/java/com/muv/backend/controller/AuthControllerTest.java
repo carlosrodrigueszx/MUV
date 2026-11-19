@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpSession;
+import com.muv.backend.repository.AuthRepository;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
@@ -30,28 +31,75 @@ class AuthControllerTest {
     private static final String REGISTRATION = """
             {"nome":"Passageiro de Teste","cpf":"%s","telefone":"85900000000",
              "email":"%s","genero":"Prefiro não informar","nascimento":"1994-06-18",
-             "senha":"%s","confirmarSenha":"%s","isAdmin":true,"perfil":"PRESTADOR"}
+             "senha":"%s","confirmarSenha":"%s","aceitouTermos":true,"isAdmin":true,"perfil":"PRESTADOR"}
             """.formatted(CPF, EMAIL, PASSWORD, PASSWORD);
 
     @Autowired MockMvc mvc;
     @Autowired JdbcClient db;
+    @Autowired AuthRepository accounts;
     @Autowired ObjectMapper json;
     @Autowired ApplicationEvents events;
+
+    @Test
+    void commonAccountCreationDoesNotRecordAnAcceptance() {
+        long id = accounts.insertAccount("Conta de teste", "85900000000", "comum@example.test", "hash");
+        var account = db.sql("SELECT termos_aceitos_em FROM usuario WHERE id = :id")
+                .param("id", id).query().singleRow();
+        assertThat(account.get("termos_aceitos_em")).isNull();
+    }
 
     @Test
     void savesPassengerWithoutProviderOrAdminPrivileges() throws Exception {
         register();
         var account = db.sql("""
-                SELECT u.senha, u.is_admin, p.cpf, p.cpf_indice, p.dados_cifrados,
+                SELECT u.senha, u.is_admin, u.termos_aceitos_em, p.cpf, p.cpf_indice, p.dados_cifrados,
                        EXISTS (SELECT 1 FROM prestador WHERE id = u.id) AS prestador
                 FROM usuario u JOIN passageiro p ON p.id = u.id WHERE u.email = :email
                 """).param("email", EMAIL).query().singleRow();
         assertThat(account.get("senha")).asString().startsWith("$2").doesNotContain(PASSWORD);
+        assertThat(account.get("termos_aceitos_em")).isNotNull();
         assertThat(account.get("is_admin")).isEqualTo(false);
         assertThat(account.get("prestador")).isEqualTo(false);
         assertThat(account.get("cpf")).isNull();
         assertThat(account.get("cpf_indice")).asString().hasSize(64);
         assertThat(account.get("dados_cifrados")).asString().doesNotContain(CPF, "12345678909", "1994-06-18");
+    }
+
+    @Test
+    void registersCompanyWithoutAuthorizingModalities() throws Exception {
+        String company = """
+                {"razaoSocial":"Empresa de Teste","nomeFantasia":"Empresa",
+                 "cnpj":"12.345.678/0001-95","telefone":"85900000000","email":"empresa@example.test",
+                 "senha":"%s","confirmarSenha":"%s","aceitouTermos":true,"declarouConformidade":true}
+                """.formatted(PASSWORD, PASSWORD);
+        send("cadastro/empresa", company.replace("aceitouTermos", "campoAusente"), 400);
+        send("cadastro/empresa", company, 201);
+        send("cadastro/empresa", company.replace("empresa@example.test", "outra@example.test")
+                .replace("12.345.678/0001-95", "12345678000195"), 409);
+
+        assertThat(db.sql("""
+                SELECT COUNT(*) FROM usuario u
+                JOIN prestador p ON p.id = u.id JOIN prestador_empresa e ON e.id = u.id
+                WHERE u.email = 'empresa@example.test' AND u.termos_aceitos_em IS NOT NULL
+                  AND p.conformidade_declarada_em IS NOT NULL AND NOT u.is_admin
+                  AND NOT EXISTS (SELECT 1 FROM autorizacao_modalidade a WHERE a.id_prestador = p.id)
+                """).query(Long.class).single()).isEqualTo(1L);
+    }
+
+    @Test
+    void registersIndependentWithOneAccountAndEncryptedLicense() throws Exception {
+        String independent = """
+                {"conta":%s,"cnh":"12345678901","categoriaCnh":"D","declarouConformidade":true}
+                """.formatted(REGISTRATION);
+        send("cadastro/autonomo", independent.replace("declarouConformidade", "campoAusente"), 400);
+        send("cadastro/autonomo", independent, 201);
+        send("cadastro", REGISTRATION, 409);
+        login(PASSWORD, 204);
+
+        assertThat(db.sql("""
+                SELECT a.habilitacao_cifrada FROM usuario u JOIN prestador_autonomo a ON a.id = u.id
+                JOIN passageiro p ON p.id = u.id WHERE u.email = :email
+                """).param("email", EMAIL).query(String.class).single()).doesNotContain("12345678901");
     }
 
     @Test
@@ -63,6 +111,7 @@ class AuthControllerTest {
 
     @Test
     void rejectsInvalidRegistrationAndMissingCsrf() throws Exception {
+        send("cadastro", REGISTRATION.replace("\"aceitouTermos\":true", "\"aceitouTermos\":false"), 400);
         send("cadastro", REGISTRATION.replace(CPF, "111.111.111-11"), 400);
         send("cadastro", REGISTRATION.replace("\"confirmarSenha\":\"" + PASSWORD + "\"", "\"confirmarSenha\":\"Diferente!42\""), 400);
         send("cadastro", REGISTRATION.replace(EMAIL, "invalido"), 400);

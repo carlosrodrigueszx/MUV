@@ -29,6 +29,6 @@ class AuthServiceTest {
 
     private static Registration registration(String cpf, String password, String confirmation) {
         return new Registration("Passageiro de Teste", cpf, "85900000000", "teste@example.test",
-                "Prefiro não informar", LocalDate.of(1994, 6, 18), password, confirmation);
+                "Prefiro não informar", LocalDate.of(1994, 6, 18), password, confirmation, true);
     }
 }

@@ -37,6 +37,18 @@ public class AuthController {
         auth.register(data);
     }
 
+    @PostMapping("/cadastro/empresa")
+    @ResponseStatus(HttpStatus.CREATED)
+    public void registerCompany(@RequestBody @Valid CompanyRegistration data) {
+        auth.registerCompany(data);
+    }
+
+    @PostMapping("/cadastro/autonomo")
+    @ResponseStatus(HttpStatus.CREATED)
+    public void registerIndependent(@RequestBody @Valid IndependentRegistration data) {
+        auth.registerIndependent(data);
+    }
+
     @GetMapping("/sessao")
     public Session session(Principal principal) {
         return accounts.findAccount(principal.getName())
