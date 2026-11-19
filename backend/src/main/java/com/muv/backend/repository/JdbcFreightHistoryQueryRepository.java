@@ -4,6 +4,7 @@ import com.muv.backend.dto.FreightHistoryProfile;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Types;
 import java.time.YearMonth;
 import java.util.List;
 
@@ -103,10 +104,10 @@ public class JdbcFreightHistoryQueryRepository implements FreightHistoryQueryRep
                 .param("userId", userId)
                 .param("isClient", profile == FreightHistoryProfile.CLIENTE)
                 .param("isProvider", profile == FreightHistoryProfile.PRESTADOR)
-                .param("modality", modality)
-                .param("status", status)
-                .param("monthStart", monthStart)
-                .param("monthEnd", monthEnd)
+                .param("modality", modality, Types.VARCHAR)
+                .param("status", status, Types.VARCHAR)
+                .param("monthStart", monthStart, Types.TIMESTAMP)
+                .param("monthEnd", monthEnd, Types.TIMESTAMP)
                 .query((resultSet, rowNum) -> new HistoryRow(
                         resultSet.getLong("solicitacao_id"),
                         resultSet.getObject("frete_id", Long.class),
