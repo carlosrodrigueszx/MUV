@@ -114,7 +114,7 @@ export function LoginPage() {
   const notice = useLocation().state?.notice as string | undefined;
   const { busy, error, handleSubmit } = useSubmit(async values => {
     await authPost("login", new URLSearchParams(values));
-    navigate("/conta", { replace: true });
+    navigate("/cliente/planejar-viagem", { replace: true });
   });
 
   return <AuthCard title="Portal de Acesso MUV" intro="Acesse sua conta de passageiro ou prestador autorizado." login>

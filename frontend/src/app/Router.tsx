@@ -12,6 +12,7 @@ import Vehicles from "../pages/Vehicles";
 import DriverLinking from "../pages/DriverLinking";
 import FreightHistory from "../pages/FreightHistory";
 import ClientePrestadores from "../pages/ClientePrestadores";
+import PlanejarViagem from "../pages/PlanejarViagem";
 
 export const Router: React.FC = () => {
   return (
@@ -19,6 +20,7 @@ export const Router: React.FC = () => {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/cliente/prestadores" element={<ClientePrestadores />} />
+        <Route path="/cliente/planejar-viagem" element={<PlanejarViagem />} />
         <Route path="/entrar" element={<LoginPage />} />
         <Route path="/cadastro" element={<RegisterPage />} />
         <Route path="/recuperar-senha" element={<RecoveryPage />} />
