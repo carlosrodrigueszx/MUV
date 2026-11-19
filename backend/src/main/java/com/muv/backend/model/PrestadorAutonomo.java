@@ -11,6 +11,6 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class PrestadorAutonomo extends Prestador {
 
-    @Column(nullable = false, unique = true, length = 14)
+    @Column(unique = true, length = 14)
     private String cpf;
 }
