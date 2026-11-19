@@ -37,14 +37,14 @@ function AuthCard({ title, intro, wide, login, compact, children }: {
   compact?: boolean;
   children: ReactNode;
 }) {
-  return <main className="grid min-h-screen place-items-center bg-slate-100 px-4 py-10 text-slate-900">
-    <section className={`w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-md sm:p-8 ${wide ? "max-w-3xl" : compact ? "max-w-sm" : "max-w-md"}`}>
+  return <main className="grid min-h-screen place-items-center bg-[#f4f6f7] px-4 py-10 text-slate-900">
+    <section className={`w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-lg sm:p-8 ${wide ? "max-w-2xl" : compact ? "max-w-sm sm:p-5" : "max-w-md"}`}>
       {wide
         ? <p className="text-sm text-slate-600">Já tem conta? <Link className={linkStyle} to="/entrar">Fazer login</Link></p>
         : !compact && <Link className={`text-sm ${linkStyle}`} to="/">← Voltar ao início</Link>}
       <div className={`my-6 ${login ? "text-center" : compact ? "!mt-0" : ""}`}>
         {login && <span className="mb-3 inline-grid size-10 place-items-center rounded-xl bg-[#1A5344] text-white"><LuBus aria-hidden="true" /></span>}
-        <h1 className={compact ? "text-lg font-bold" : "text-2xl font-bold text-[#1A5344]"}>{title}</h1>
+        <h1 className={compact ? "text-lg font-bold" : login ? "text-2xl font-bold" : "text-2xl font-bold text-[#1A5344]"}>{title}</h1>
         <p className="mt-1 text-sm text-slate-600">{intro}</p>
       </div>
       {children}
@@ -117,11 +117,11 @@ export function LoginPage() {
     navigate("/cliente/planejar-viagem", { replace: true });
   });
 
-  return <AuthCard title="Portal de Acesso MUV" intro="Acesse sua conta de passageiro ou prestador autorizado." login>
+  return <AuthCard title="Portal de Acesso MUV" intro="Acesse sua conta MUV como passageiro ou prestador." login>
     {notice && <p role="status" className="mb-4 text-sm text-[#1A5344]">{notice}</p>}
     <form className="space-y-4" onSubmit={handleSubmit}>
-      <Field name="email" label="E-mail" type="email" icon={<LuMail size={16} />} autoComplete="username" maxLength={255} />
-      <Field name="senha" label="Senha" secret icon={<LuLockKeyhole size={16} />} autoComplete="current-password" maxLength={72} />
+      <Field name="email" label="Identificador de acesso" placeholder="Seu e-mail cadastrado" type="email" icon={<LuMail size={16} />} autoComplete="username" maxLength={255} />
+      <Field name="senha" label="Senha de acesso" placeholder="Digite sua senha cadastrada" secret icon={<LuLockKeyhole size={16} />} autoComplete="current-password" maxLength={72} />
       <Link to="/recuperar-senha" className={`block text-right text-sm ${linkStyle}`}>Esqueceu a senha?</Link>
       <Feedback error={error} />
       <button className={`flex w-full items-center justify-center gap-2 ${buttonStyle}`} disabled={busy}>
@@ -129,7 +129,7 @@ export function LoginPage() {
       </button>
     </form>
     <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-100 p-3 text-sm">
-      <p className="font-medium">Ainda não tem conta?</p>
+      <p className="font-medium">Ainda não tem cadastro no MUV?</p>
       <Link to="/cadastro" className={buttonStyle}>Criar nova conta</Link>
     </div>
   </AuthCard>;
