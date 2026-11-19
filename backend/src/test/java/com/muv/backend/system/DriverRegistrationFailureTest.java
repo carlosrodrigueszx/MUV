@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringJUnitConfig(classes = SeleniumConfig.class,
         initializers = ConfigDataApplicationContextInitializer.class)
-@ActiveProfiles("dev")
+@ActiveProfiles("test")
 public class DriverRegistrationFailureTest {
     private static final String OPERATION_FAILED = "Não foi possível concluir a operação.";
 
