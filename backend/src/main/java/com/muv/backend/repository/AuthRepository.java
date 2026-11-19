@@ -25,7 +25,9 @@ public class AuthRepository {
     public boolean hasCpf(String cpf, String index) {
         return db.sql("""
                 SELECT EXISTS (SELECT 1 FROM passageiro
-                    WHERE cpf_indice = :indice OR regexp_replace(cpf, '[^0-9]', '', 'g') = :cpf)
+                    WHERE cpf_indice = :indice OR regexp_replace(cpf, '[^0-9]', '', 'g') = :cpf
+                    UNION ALL SELECT 1 FROM prestador_autonomo
+                    WHERE regexp_replace(cpf, '[^0-9]', '', 'g') = :cpf)
                 """).param("indice", index).param("cpf", cpf).query(Boolean.class).single();
     }
 
@@ -37,9 +39,41 @@ public class AuthRepository {
                 .param("senha", passwordHash).query(Long.class).single();
     }
 
+    public void recordTermsAcceptance(long id) {
+        db.sql("UPDATE usuario SET termos_aceitos_em = CURRENT_TIMESTAMP WHERE id = :id")
+                .param("id", id).update();
+    }
+
     public void insertPassenger(long id, String index, String encrypted) {
         db.sql("INSERT INTO passageiro (id, cpf_indice, dados_cifrados) VALUES (:id, :indice, :dados)")
                 .param("id", id).param("indice", index).param("dados", encrypted).update();
+    }
+
+    public boolean hasCompanyDocument(String cnpj) {
+        return db.sql("""
+                SELECT EXISTS (SELECT 1 FROM prestador_empresa
+                    WHERE regexp_replace(cnpj, '[^0-9]', '', 'g') = :cnpj)
+                """).param("cnpj", cnpj).query(Boolean.class).single();
+    }
+
+    public void insertProvider(long id) {
+        db.sql("INSERT INTO prestador (id, conformidade_declarada_em) VALUES (:id, CURRENT_TIMESTAMP)")
+                .param("id", id).update();
+    }
+
+    public void insertCompany(long id, String cnpj, String legalName, String tradeName) {
+        db.sql("""
+                INSERT INTO prestador_empresa (id, cnpj, razao_social, nome_fantasia)
+                VALUES (:id, :cnpj, :legalName, :tradeName)
+                """).param("id", id).param("cnpj", cnpj).param("legalName", legalName)
+                .param("tradeName", tradeName).update();
+    }
+
+    public void insertIndependent(long id, String encryptedLicense) {
+        db.sql("""
+                INSERT INTO prestador_autonomo (id, habilitacao_cifrada)
+                VALUES (:id, :encryptedLicense)
+                """).param("id", id).param("encryptedLicense", encryptedLicense).update();
     }
 
     public void lockAccount(long id) {

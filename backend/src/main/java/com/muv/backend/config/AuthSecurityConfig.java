@@ -42,7 +42,7 @@ public class AuthSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/cadastro", "/api/auth/login",
-                                "/api/auth/recuperacao", "/api/auth/redefinicao").permitAll()
+                                "/api/auth/cadastro/empresa", "/api/auth/cadastro/autonomo", "/api/auth/recuperacao", "/api/auth/redefinicao").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/sessao").authenticated()
                         .anyRequest().denyAll())
                 .requestCache(cache -> cache.disable())

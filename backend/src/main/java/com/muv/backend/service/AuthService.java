@@ -1,5 +1,7 @@
 package com.muv.backend.service;
 
+import com.muv.backend.dto.AuthRequests.CompanyRegistration;
+import com.muv.backend.dto.AuthRequests.IndependentRegistration;
 import com.muv.backend.dto.AuthRequests.Registration;
 import com.muv.backend.dto.AuthRequests.Reset;
 import com.muv.backend.repository.AuthRepository;
@@ -46,15 +48,50 @@ public class AuthService {
 
     @Transactional
     public void register(Registration request) {
+        insertPassengerAccount(request);
+    }
+
+    @Transactional
+    public void registerCompany(CompanyRegistration request) {
+        checkPassword(request.senha(), request.confirmarSenha());
+        String cnpj = request.cnpj().replaceAll("[^0-9]", "");
+        if (!isValidCnpj(cnpj)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe um CNPJ válido.");
+        }
+        String email = normalizeEmail(request.email());
+        if (accounts.findAccount(email).isPresent() || accounts.hasCompanyDocument(cnpj)) {
+            throw duplicateCompany();
+        }
+
+        try {
+            long id = accounts.insertAccount(request.razaoSocial().trim(), normalizePhone(request.telefone()),
+                    email, passwords.encode(request.senha()));
+            accounts.recordTermsAcceptance(id);
+            accounts.insertProvider(id);
+            accounts.insertCompany(id, cnpj, request.razaoSocial().trim(), request.nomeFantasia().trim());
+        } catch (DuplicateKeyException exception) {
+            throw duplicateCompany();
+        }
+    }
+
+    @Transactional
+    public void registerIndependent(IndependentRegistration request) {
+        long id = insertPassengerAccount(request.conta());
+        try {
+            accounts.insertProvider(id);
+            accounts.insertIndependent(id, privacy.encrypt(request.cnh() + "\n" + request.categoriaCnh(), id));
+        } catch (DuplicateKeyException exception) {
+            throw duplicateRegistration();
+        }
+    }
+
+    private long insertPassengerAccount(Registration request) {
         checkPassword(request.senha(), request.confirmarSenha());
         String cpf = request.cpf().replaceAll("[^0-9]", "");
         if (!isValidCpf(cpf)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe um CPF válido.");
         }
-        String telefone = request.telefone().replaceAll("[^0-9]", "");
-        if (!telefone.matches("(?:55)?[0-9]{10,11}")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe um telefone com DDD.");
-        }
+        String telefone = normalizePhone(request.telefone());
         String email = normalizeEmail(request.email());
         String index = privacy.cpfIndex(cpf);
         if (accounts.findAccount(email).isPresent() || accounts.hasCpf(cpf, index)) {
@@ -64,8 +101,10 @@ public class AuthService {
         try {
             long id = accounts.insertAccount(request.nome().trim(), telefone, email,
                     passwords.encode(request.senha()));
+            accounts.recordTermsAcceptance(id);
             String personalData = cpf + "\n" + request.nascimento() + "\n" + request.genero().trim();
             accounts.insertPassenger(id, index, privacy.encrypt(personalData, id));
+            return id;
         } catch (DuplicateKeyException exception) {
             throw duplicateRegistration();
         }
@@ -101,6 +140,32 @@ public class AuthService {
 
     public static String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String normalizePhone(String phone) {
+        String digits = phone.replaceAll("[^0-9]", "");
+        if (!digits.matches("(?:55)?[0-9]{10,11}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe um telefone com DDD.");
+        }
+        return digits;
+    }
+
+    private static boolean isValidCnpj(String cnpj) {
+        if (!cnpj.matches("[0-9]{14}") || cnpj.chars().distinct().count() == 1) return false;
+        for (int length = 12; length <= 13; length++) {
+            int sum = 0;
+            for (int i = 0; i < length; i++) {
+                sum += (cnpj.charAt(i) - '0') * (2 + (length - 1 - i) % 8);
+            }
+            int remainder = sum % 11;
+            int digit = remainder < 2 ? 0 : 11 - remainder;
+            if (digit != cnpj.charAt(length) - '0') return false;
+        }
+        return true;
+    }
+
+    private static ResponseStatusException duplicateCompany() {
+        return new ResponseStatusException(HttpStatus.CONFLICT, "Já existe uma conta com esse e-mail ou CNPJ.");
     }
 
     static boolean isValidCpf(String cpf) {
