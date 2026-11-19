@@ -1,4 +1,5 @@
-import type { OrganizationDriver, RequestStatus } from "../types";
+import { useState } from "react";
+import type { OrganizationDriver, RequestStatus, VerificationStatus } from "../types";
 import { DriverSummary } from "./DriverSummary";
 
 interface OrganizationDriversSectionProps {
@@ -7,6 +8,7 @@ interface OrganizationDriversSectionProps {
   onSearch: () => void;
   drivers: OrganizationDriver[];
   status: RequestStatus;
+  onVerify: (id: string, status: VerificationStatus) => Promise<void>;
 }
 
 export function OrganizationDriversSection({
@@ -15,7 +17,16 @@ export function OrganizationDriversSection({
   onSearch,
   drivers,
   status,
+  onVerify,
 }: OrganizationDriversSectionProps) {
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function verify(id: string, value: VerificationStatus) {
+    setSavingId(id); setError(null);
+    try { await onVerify(id, value); }
+    catch (error) { setError(error instanceof Error ? error.message : "Não foi possível verificar o motorista."); }
+    finally { setSavingId(null); }
+  }
   return (
     <section className="flex flex-col gap-4 rounded-[14px] border border-[#dfe7e8] bg-white p-6 shadow-[0_10px_16px_rgba(0,0,0,0.1)]">
       <h2 className="text-[19px] leading-7 font-semibold text-[#1d2d32]">
@@ -54,6 +65,7 @@ export function OrganizationDriversSection({
         </button>
       </form>
 
+      {error && <p role="alert">{error}</p>}
       {status === "error" && (
         <p role="alert" className="text-[13px] leading-[19px] text-[#637479]">
           Não foi possível carregar os motoristas. Tente novamente.
@@ -65,12 +77,22 @@ export function OrganizationDriversSection({
         </p>
       )}
 
-      {drivers.map((driver) => (
+      {status === "ready" && drivers.map((driver) => (
         <article
           key={driver.id}
           className="rounded-[14px] border border-[#dfe7e8] bg-white p-4"
         >
           <DriverSummary driver={driver} size="md" />
+          <label className="mt-3 flex items-center gap-3 text-sm">
+            Verificação do motorista
+            <select aria-label={`Verificação de ${driver.name}`} value={driver.statusVerificacao}
+              disabled={savingId !== null} onChange={event => void verify(driver.id, event.target.value as VerificationStatus)}
+              className="rounded-lg border border-[#dfe7e8] bg-white p-2">
+              <option value="PENDENTE">Pendente</option>
+              <option value="VERIFICADO">Verificado</option>
+              <option value="REJEITADO">Rejeitado</option>
+            </select>
+          </label>
         </article>
       ))}
 

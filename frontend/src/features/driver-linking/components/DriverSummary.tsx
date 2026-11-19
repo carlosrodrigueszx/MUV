@@ -7,7 +7,8 @@ interface DriverSummaryProps {
   size?: "sm" | "md";
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Info({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
   return (
     <span className="whitespace-nowrap">
       <strong className="font-semibold">{label}:</strong> {value}

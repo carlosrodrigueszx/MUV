@@ -2,7 +2,6 @@ package com.muv.backend.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Entity

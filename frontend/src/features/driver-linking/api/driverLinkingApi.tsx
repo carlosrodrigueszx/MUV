@@ -3,16 +3,11 @@ import type {
   NewDriverPayload,
   OrganizationDriver,
   ProviderProfile,
+  VerificationStatus,
 } from "../types";
 
-/**
- * Contrato de acesso à API para o fluxo de vinculação de motoristas.
- * A UI e o hook dependem só desta interface: para ajustar a API, basta
- * alterar a implementação abaixo (ou injetar outra no `useDriverLinking`).
- */
 export interface DriverLinkingApi {
   getProfile(signal?: AbortSignal): Promise<ProviderProfile>;
-  /** Retorna `null` quando nenhuma conta é encontrada. */
   findAccount(
     identifier: string,
     signal?: AbortSignal,
@@ -23,8 +18,11 @@ export interface DriverLinkingApi {
     signal?: AbortSignal,
   ): Promise<OrganizationDriver[]>;
   createDriver(payload: NewDriverPayload): Promise<OrganizationDriver>;
+  verifyDriver(
+    driverId: string,
+    status: VerificationStatus,
+  ): Promise<OrganizationDriver>;
 }
-
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -33,84 +31,163 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
-
-/**
- * TODO(API): rotas provisórias — confirmar com o time de backend.
- * Centralizadas aqui para facilitar o ajuste.
- */
-const ENDPOINTS = {
-  profile: "/provider/profile",
-  drivers: "/provider/drivers",
-  lookup: "/provider/drivers/lookup",
-  link: "/provider/drivers/link",
-} as const;
-
-interface HttpApiOptions {
-  baseUrl: string;
-  /** Opcional: devolve o token de autenticação atual. */
-  getAuthToken?: () => string | null;
+interface MotoristaResponse {
+  id: number;
+  nome: string;
+  telefone: string;
+  cnh: string;
+  categoriaCnh: string;
+  cpf?: string | null;
+  nascimento?: string | null;
+  genero?: string | null;
+  email?: string | null;
+  avatarUrl?: string | null;
+  statusVerificacao?: VerificationStatus;
+  dataVerificacao?: string | null;
 }
-
+function mapDriver(data: MotoristaResponse): DriverAccount {
+  return {
+    id: String(data.id),
+    name: data.nome,
+    phone: data.telefone,
+    cnh: data.cnh,
+    cpf: data.cpf,
+    birthDate: data.nascimento,
+    gender: data.genero,
+    email: data.email,
+    avatarUrl: data.avatarUrl,
+    cnhCategory: data.categoriaCnh,
+    statusVerificacao: data.statusVerificacao,
+    dataVerificacao: data.dataVerificacao,
+  };
+}
 export function createDriverLinkingApi({
   baseUrl,
-  getAuthToken,
-}: HttpApiOptions): DriverLinkingApi {
+}: {
+  baseUrl: string;
+}): DriverLinkingApi {
+  const base = baseUrl.replace(/\/$/, "");
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
-    const token = getAuthToken?.();
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-
-    const response = await fetch(`${baseUrl}${path}`, { ...init, headers });
+    if (init.method && init.method !== "GET") {
+      const csrf = await request<{ headerName: string; token: string }>(
+        "/api/auth/csrf",
+      );
+      headers.set(csrf.headerName, csrf.token);
+      headers.set("Content-Type", "application/json");
+    }
+    const response = await fetch(`${base}${path}`, {
+      ...init,
+      headers,
+      credentials: "include",
+      cache: "no-store",
+    });
     if (!response.ok) {
+      const error = (await response.json().catch(() => null)) as {
+        detail?: string;
+      } | null;
       throw new ApiError(
         response.status,
-        response.statusText || "Falha na requisição",
+        error?.detail ??
+          (response.status === 401
+            ? "Entre na sua conta de gestor para continuar."
+            : "Não foi possível concluir a operação."),
       );
     }
     return (await response.json()) as T;
   }
-
+  async function getProfile(signal?: AbortSignal): Promise<ProviderProfile> {
+    const data = await request<{ id: number; nomeFantasia: string }>(
+      "/api/prestadores/motoristas/perfil",
+      { signal },
+    );
+    return { id: data.id, organizationName: data.nomeFantasia };
+  }
+  async function driversPath(signal?: AbortSignal) {
+    const profile = await getProfile(signal);
+    return `/api/prestadores/${profile.id}/motoristas`;
+  }
   return {
-    getProfile: (signal) =>
-      request<ProviderProfile>(ENDPOINTS.profile, { signal }),
-
+    getProfile,
     async findAccount(identifier, signal) {
+      const path = await driversPath(signal);
       try {
-        return await request<DriverAccount>(
-          `${ENDPOINTS.lookup}?identifier=${encodeURIComponent(identifier)}`,
-          { signal },
+        return mapDriver(
+          await request<MotoristaResponse>(
+            `${path}/busca?identifier=${encodeURIComponent(identifier.trim())}`,
+            { signal },
+          ),
         );
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) return null;
         throw error;
       }
     },
-
-    linkDriver: (driverId) =>
-      request<OrganizationDriver>(ENDPOINTS.link, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ driverId }),
-      }),
-
-    listOrganizationDrivers: (search, signal) => {
-      const query = search ? `?search=${encodeURIComponent(search)}` : "";
-      return request<OrganizationDriver[]>(`${ENDPOINTS.drivers}${query}`, {
-        signal,
-      });
+    async listOrganizationDrivers(search, signal) {
+      const path = await driversPath(signal);
+      const data = await request<MotoristaResponse[]>(
+        `${path}?search=${encodeURIComponent(search ?? "")}`,
+        { signal },
+      );
+      return data.map(mapDriver);
     },
-
-    createDriver(payload) {
-      const { photo, passwordConfirmation, ...fields } = payload;
-      void passwordConfirmation; // validada no front; não é enviada
-      const body = new FormData();
-      Object.entries(fields).forEach(([key, value]) => body.append(key, value));
-      if (photo) body.append("photo", photo);
-      return request<OrganizationDriver>(ENDPOINTS.drivers, {
-        method: "POST",
-        body,
-      });
+    async createDriver(payload) {
+      const path = await driversPath();
+      return mapDriver(
+        await request<MotoristaResponse>(path, {
+          method: "POST",
+          body: JSON.stringify({
+            nome: payload.name.trim(),
+            telefone: payload.phone.trim(),
+            cnh: payload.cnh.trim(),
+            categoriaCnh: payload.cnhCategory,
+            cpf: payload.cpf,
+            nascimento: toIsoDate(payload.birthDate),
+            genero: payload.gender,
+            email: payload.email,
+            senha: payload.password,
+            confirmarSenha: payload.passwordConfirmation,
+            foto: payload.photo ? await readPhoto(payload.photo) : null,
+          }),
+        }),
+      );
+    },
+    async linkDriver(driverId) {
+      const path = await driversPath();
+      return mapDriver(
+        await request<MotoristaResponse>(
+          `${path}/${encodeURIComponent(driverId)}`,
+          { method: "POST" },
+        ),
+      );
+    },
+    async verifyDriver(driverId, status) {
+      const path = await driversPath();
+      return mapDriver(
+        await request<MotoristaResponse>(
+          `${path}/${encodeURIComponent(driverId)}/verificacao`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ statusVerificacao: status }),
+          },
+        ),
+      );
     },
   };
+}
+
+function toIsoDate(date: string): string {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(date);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : date;
+}
+function readPhoto(file: File): Promise<string> {
+  if (file.size > 1048576)
+    return Promise.reject(new Error("A foto deve ter no máximo 1 MB."));
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Não foi possível ler a foto."));
+    reader.readAsDataURL(file);
+  });
 }
