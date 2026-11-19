@@ -147,3 +147,16 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# outros
+docker-compose.yaml
+design.md
+requirements.md
+task.md
+
+# Relatórios acadêmicos e evidências de testes
+docs/testes/
+
+# Fixtures SQL locais de RF005
+backend/src/test/resources/rf005-test-data.sql
+backend/src/test/resources/rf005-test-cleanup.sql
