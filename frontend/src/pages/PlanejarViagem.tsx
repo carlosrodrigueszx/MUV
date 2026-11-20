@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LuBus, LuPlus, LuSearch, LuX } from "react-icons/lu";
 import litoral from "../assets/viagens/litoral.webp";
 import saoPaulo from "../assets/viagens/sao-paulo.webp";
 import santos from "../assets/viagens/santos.webp";
 import serra from "../assets/viagens/serra.webp";
 import { getSession, type Session } from "../features/auth/api";
+
+import { validateTrip, type TripNavigationState } from "../features/trip-planning/criteria";
 
 const field = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm";
 const primary = "inline-flex items-center justify-center gap-2 rounded-lg bg-[#176457] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#134f45]";
@@ -18,11 +20,16 @@ const routes = [
 
 export default function PlanejarViagem() {
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const trip = (state as TripNavigationState | null)?.trip;
+  const [formError, setFormError] = useState("");
   const [session, setSession] = useState<Session>();
   const [sessionError, setSessionError] = useState("");
-  const [roundTrip, setRoundTrip] = useState(false);
-  const [stops, setStops] = useState<string[]>([]);
-  const [departure, setDeparture] = useState("");
+  const [roundTrip, setRoundTrip] = useState(Boolean(trip?.returnAt));
+  const [stops, setStops] = useState(trip?.stops ?? []);
+  const [departure, setDeparture] = useState(trip?.departure.split("T")[0] ?? "");
+  const [returnDate, setReturnDate] = useState(trip?.returnAt?.split("T")[0] ?? "");
+  const [returnTime, setReturnTime] = useState(trip?.returnAt?.split("T")[1] ?? "");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -65,9 +72,24 @@ export default function PlanejarViagem() {
       </section>
 
       <form className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+        onInput={() => setFormError("")}
         onSubmit={event => {
           event.preventDefault();
-          navigate("/cliente/prestadores");
+          const form = event.currentTarget;
+          const result = validateTrip(new FormData(form), roundTrip);
+          if (result.error) {
+            setFormError(result.error);
+            const fields = form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(`[name="${result.field}"]`);
+            const invalidField = result.field === "parada"
+              ? Array.from(fields).find(input => !input.value.trim())
+              : fields[0];
+            invalidField?.focus();
+            return;
+          }
+          // Keep the submitted criteria on both entries so browser Back also restores them.
+          const state = { trip: result.trip };
+          navigate("/cliente/planejar-viagem", { replace: true, state });
+          navigate("/cliente/prestadores", { state });
         }}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-bold">Defina seu roteiro</h2>
@@ -81,12 +103,12 @@ export default function PlanejarViagem() {
             </label>
           </fieldset>
         </div>
-        <label className={label}>Embarque<input className={field} name="embarque" required placeholder="Informe o ponto de embarque" /></label>
+        <label className={label}>Embarque<input className={field} name="embarque" defaultValue={trip?.origin} required placeholder="Informe o ponto de embarque" /></label>
         <p className="text-sm font-medium">Paradas</p>
         {stops.map((stop, index) => <div key={index} className="flex items-center gap-3 rounded-lg border border-slate-200 p-2">
           <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-full bg-[#e5f1eb] text-sm font-semibold text-[#176457]">{index + 1}</span>
           <label className={`${label} flex-1`}>Parada {index + 1}
-            <input className={field} required value={stop} onChange={event => {
+            <input className={field} name="parada" required value={stop} onChange={event => {
               const value = event.target.value;
               setStops(current => current.map((item, position) => position === index ? value : item));
             }} />
@@ -98,18 +120,27 @@ export default function PlanejarViagem() {
         </div>)}
         <button type="button" className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-left text-sm text-[#176457]"
           onClick={() => setStops(current => [...current, ""])}><LuPlus aria-hidden="true" /> Adicionar outra parada</button>
-        <label className={label}>Destino<input className={field} name="destino" required placeholder="Informe o destino" /></label>
+        <label className={label}>Destino<input className={field} name="destino" defaultValue={trip?.destination} required placeholder="Informe o destino" /></label>
         <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${roundTrip ? "lg:grid-cols-5" : "lg:grid-cols-3"}`}>
           <label className={label}>Data de ida<input className={field} type="date" name="dataIda" required value={departure} onChange={event => setDeparture(event.target.value)} /></label>
-          <label className={label}>Horário de ida<input className={field} type="time" name="horaIda" required /></label>
+          <label className={label}>Horário de ida<input className={field} type="time" name="horaIda" defaultValue={trip?.departure.split("T")[1]} required /></label>
           {roundTrip && <>
-            <label className={label}>Data de retorno<input className={field} type="date" name="dataRetorno" required min={departure || undefined} /></label>
-            <label className={label}>Horário de retorno<input className={field} type="time" name="horaRetorno" required /></label>
+            <label className={label}>Data de retorno<input className={field} type="date" name="dataRetorno" value={returnDate} onChange={event => setReturnDate(event.target.value)} required min={departure || undefined} /></label>
+            <label className={label}>Horário de retorno<input className={field} type="time" name="horaRetorno" value={returnTime} onChange={event => setReturnTime(event.target.value)} required /></label>
           </>}
-          <label className={label}>Passageiros<input className={field} type="number" name="passageiros" min="1" defaultValue="1" required /></label>
+          <label className={label}>Passageiros<input className={field} type="number" name="passageiros" min="1" max="2147483647" defaultValue={trip?.passengers ?? 1} required /></label>
         </div>
+        <fieldset className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <legend className="mb-2 font-semibold">Oferta original (opcional)</legend>
+          <label className={label}>Valor em reais
+            <input className={field} name="valor" type="number" min="0.01" max="99999999999.99" step="0.01" defaultValue={trip?.offer?.amount} />
+          </label>
+          <label className={label}>Condições da oferta
+            <textarea className={field} name="condicoes" defaultValue={trip?.offer?.terms} />
+          </label>
+        </fieldset>
+        {formError && <p role="alert" className="text-sm text-red-700">{formError}</p>}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-slate-600">O roteiro fica nesta tela. A próxima página permite pesquisar prestadores por modalidade e região.</p>
           <button className={primary}><LuSearch aria-hidden="true" /> Consultar prestadores</button>
         </div>
       </form>

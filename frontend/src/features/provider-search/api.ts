@@ -6,6 +6,7 @@ export interface ProviderSearchFilters {
   cidade?: string;
   estado?: string;
   tipo?: ProviderType;
+  quantidadePassageiros?: number;
 }
 
 export interface ProviderSearchResult {
@@ -31,7 +32,7 @@ export async function searchProviders(
 ): Promise<ProviderSearchResult[]> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
-    if (value) params.set(key, value);
+    if (value !== undefined && value !== "") params.set(key, String(value));
   }
 
   const response = await fetch(`/api/prestadores/consulta?${params}`, {

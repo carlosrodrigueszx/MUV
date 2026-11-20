@@ -21,6 +21,11 @@ public class PrestadorConsultaRepository {
     }
 
     public List<PrestadorConsultaResponse> buscar(String modalidade, String cidade, String estado, String tipo) {
+        return buscar(modalidade, cidade, estado, tipo, null);
+    }
+
+    public List<PrestadorConsultaResponse> buscar(
+            String modalidade, String cidade, String estado, String tipo, Integer quantidadePassageiros) {
         StringBuilder sql = new StringBuilder("""
                 SELECT p.id,
                        COALESCE(NULLIF(pe.nome_fantasia, ''), u.nome) AS nome,
@@ -49,7 +54,9 @@ public class PrestadorConsultaRepository {
                 WHERE (pe.id IS NOT NULL OR pa.id IS NOT NULL)
                 """);
 
-        if (modalidade != null) {
+        if (quantidadePassageiros != null) {
+            sql.append(" AND am.modalidade = :modalidade AND v.capacidade_passageiros >= :quantidadePassageiros");
+        } else if (modalidade != null) {
             sql.append("""
                      AND EXISTS (
                          SELECT 1
@@ -81,6 +88,7 @@ public class PrestadorConsultaRepository {
 
         JdbcClient.StatementSpec query = db.sql(sql.toString());
         if (modalidade != null) query.param("modalidade", modalidade);
+        if (quantidadePassageiros != null) query.param("quantidadePassageiros", quantidadePassageiros);
         if (cidade != null) query.param("cidade", "%" + cidade + "%");
         if (estado != null) query.param("estado", estado);
         if (tipo != null) query.param("tipo", tipo);
