@@ -22,6 +22,11 @@ public class PrestadorConsultaService {
 
     public List<PrestadorConsultaResponse> buscar(
             String modalidade, String cidade, String estado, String tipo) {
+        return buscar(modalidade, cidade, estado, tipo, null);
+    }
+
+    public List<PrestadorConsultaResponse> buscar(
+            String modalidade, String cidade, String estado, String tipo, Integer quantidadePassageiros) {
         String modalidadeNormalizada = normalizeOption(modalidade, MODALIDADES, "modalidade");
         String tipoNormalizado = normalizeOption(tipo, TIPOS, "tipo");
         String cidadeNormalizada = normalizeText(cidade);
@@ -32,7 +37,14 @@ public class PrestadorConsultaService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O estado deve conter a sigla de dois caracteres.");
             }
         }
-        return repository.buscar(modalidadeNormalizada, cidadeNormalizada, estadoNormalizado, tipoNormalizado);
+        if (quantidadePassageiros == null) {
+            return repository.buscar(modalidadeNormalizada, cidadeNormalizada, estadoNormalizado, tipoNormalizado);
+        }
+        if (quantidadePassageiros < 1 || "ENCOMENDA".equals(modalidadeNormalizada)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Informe uma quantidade positiva de passageiros para a modalidade de pessoas.");
+        }
+        return repository.buscar("PESSOA", cidadeNormalizada, estadoNormalizado, tipoNormalizado, quantidadePassageiros);
     }
 
     private String normalizeOption(String value, Set<String> options, String field) {
