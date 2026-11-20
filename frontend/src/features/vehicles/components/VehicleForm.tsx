@@ -1,5 +1,5 @@
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import type { Vehicle, NewVehiclePayload } from "../types";
 
 interface VehicleFormProps {
@@ -25,13 +25,8 @@ export function VehicleForm({
   onSubmit,
   onClose,
 }: VehicleFormProps) {
-  const [form, setForm] = useState<NewVehiclePayload>(emptyForm);
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (vehicle) {
-      setForm({
+  const [form, setForm] = useState<NewVehiclePayload>(() => vehicle
+    ? {
         type: vehicle.type,
         brand: vehicle.brand,
         model: vehicle.model,
@@ -41,13 +36,10 @@ export function VehicleForm({
         capacity: vehicle.capacity,
         description: vehicle.description,
         photo: null,
-      });
-    } else {
-      setForm({ ...emptyForm });
-    }
-
-    setError("");
-  }, [vehicle]);
+      }
+    : { ...emptyForm });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   function handleChange(
     event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
@@ -100,8 +92,9 @@ export function VehicleForm({
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-semibold">Tipo de veículo</label>
+        <label htmlFor="vehicle-type" className="mb-2 block text-sm font-semibold">Tipo de veículo</label>
         <select
+          id="vehicle-type"
           name="type"
           value={form.type}
           onChange={handleChange}
@@ -114,32 +107,37 @@ export function VehicleForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-2 block text-sm font-semibold">Marca</label>
+            <label htmlFor="vehicle-brand" className="mb-2 block text-sm font-semibold">Marca</label>
           <input
+              id="vehicle-brand"
             name="brand"
             value={form.brand}
             onChange={handleChange}
             required
+              maxLength={64}
             placeholder="Ex.: Mercedes-Benz"
             className="w-full rounded-lg border border-[#cbd5d7] p-3 text-sm"
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold">Modelo</label>
+            <label htmlFor="vehicle-model" className="mb-2 block text-sm font-semibold">Modelo</label>
           <input
+              id="vehicle-model"
             name="model"
             value={form.model}
             onChange={handleChange}
             required
+              maxLength={32}
             placeholder="Ex.: Sprinter"
             className="w-full rounded-lg border border-[#cbd5d7] p-3 text-sm"
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold">Ano</label>
+            <label htmlFor="vehicle-year" className="mb-2 block text-sm font-semibold">Ano</label>
           <input
+              id="vehicle-year"
             name="year"
             type="number"
             min="1900"
@@ -152,35 +150,39 @@ export function VehicleForm({
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold">Placa</label>
+            <label htmlFor="vehicle-plate" className="mb-2 block text-sm font-semibold">Placa</label>
           <input
+              id="vehicle-plate"
             name="plate"
             value={form.plate}
             onChange={handleChange}
             required
-            maxLength={7}
+              maxLength={8}
             placeholder="ABC1D23"
             className="w-full rounded-lg border border-[#cbd5d7] p-3 text-sm uppercase"
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold">Cor</label>
+            <label htmlFor="vehicle-color" className="mb-2 block text-sm font-semibold">Cor</label>
           <input
+              id="vehicle-color"
             name="color"
             value={form.color}
             onChange={handleChange}
             required
+              maxLength={32}
             placeholder="Ex.: Branco"
             className="w-full rounded-lg border border-[#cbd5d7] p-3 text-sm"
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold">
+            <label htmlFor="vehicle-capacity" className="mb-2 block text-sm font-semibold">
             Capacidade ({form.type === "passageiros" ? "pessoas" : "kg"})
           </label>
           <input
+              id="vehicle-capacity"
             name="capacity"
             type="number"
             min="1"
@@ -193,13 +195,15 @@ export function VehicleForm({
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-semibold">
+        <label htmlFor="vehicle-description" className="mb-2 block text-sm font-semibold">
           Características adicionais
         </label>
         <textarea
+          id="vehicle-description"
           name="description"
           value={form.description}
           onChange={handleChange}
+          maxLength={255}
           rows={3}
           placeholder="Descreva outras características do veículo..."
           className="w-full rounded-lg border border-[#cbd5d7] p-3 text-sm"
@@ -207,7 +211,7 @@ export function VehicleForm({
       </div>
 
       {error && (
-        <p className="text-sm text-red-600">{error}</p>
+        <p role="alert" className="text-sm text-red-600">{error}</p>
       )}
 
       <div className="flex flex-wrap justify-end gap-3">
