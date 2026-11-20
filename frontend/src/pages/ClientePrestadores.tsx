@@ -239,19 +239,15 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
               </span>
               <span className="h-[3px] w-full bg-[#17695b]" />
             </Link>
-            <a
-              href="#meus-fretes"
-              onClick={(event) => {
-                event.preventDefault();
-                setFeedback("A área de fretes ainda não está conectada.");
-              }}
+            <Link
+              to="/cliente/historico"
               className="flex h-full flex-col items-center justify-center"
             >
               <span className="flex h-[77px] items-center text-[14px] font-medium leading-[1.45] text-[#637479]">
                 Meus fretes
               </span>
               <span className="h-[3px] w-full bg-transparent" />
-            </a>
+            </Link>
           </nav>
 
           <div className="flex shrink-0 items-center gap-5 max-sm:gap-3">

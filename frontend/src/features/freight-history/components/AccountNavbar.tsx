@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   LuBell,
   LuChevronDown,
@@ -8,14 +8,17 @@ import {
   LuX,
 } from "react-icons/lu";
 
-const accountLinks = [
-  { label: "Solicitar frete", to: "/solicitar-frete" },
-  { label: "Prestadores", to: "/prestadores" },
-  { label: "Meus fretes", to: "/meus-fretes" },
-];
-
 export function AccountNavbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+  const historyPath = location.pathname.startsWith("/prestador/")
+    ? "/prestador/historico"
+    : "/cliente/historico";
+  const accountLinks = [
+    { label: "Solicitar frete", to: "/cliente/planejar-viagem" },
+    { label: "Prestadores", to: "/cliente/prestadores" },
+    { label: "Meus fretes", to: historyPath },
+  ];
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-md">
@@ -33,7 +36,7 @@ export function AccountNavbar() {
               key={link.to}
               to={link.to}
               className={`flex h-full items-center border-b-2 px-1 transition-colors hover:text-[#176A5B] ${
-                link.to === "/meus-fretes"
+                link.to === historyPath
                   ? "border-[#176A5B] font-semibold text-[#176A5B]"
                   : "border-transparent"
               }`}

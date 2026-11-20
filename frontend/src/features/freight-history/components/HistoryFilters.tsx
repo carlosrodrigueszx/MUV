@@ -1,7 +1,8 @@
-import type { FreightHistoryFilters } from "../types";
+import type { AccountProfile, FreightHistoryFilters } from "../types";
 
 interface HistoryFiltersProps {
   filters: FreightHistoryFilters;
+  allowedProfiles: AccountProfile[];
   onChange: (filters: FreightHistoryFilters) => void;
   onSubmit: () => void;
 }
@@ -9,7 +10,12 @@ interface HistoryFiltersProps {
 const fieldClassName =
   "h-12 w-full rounded-lg border border-slate-200 bg-[#F4F6F7] px-3 text-sm text-slate-700 outline-none transition focus:border-[#176A5B] focus:ring-2 focus:ring-[#176A5B]/10";
 
-export function HistoryFilters({ filters, onChange, onSubmit }: HistoryFiltersProps) {
+const profileLabels: Record<AccountProfile, string> = {
+  cliente: "Cliente",
+  prestador: "Prestador",
+};
+
+export function HistoryFilters({ filters, allowedProfiles, onChange, onSubmit }: HistoryFiltersProps) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
       <h2 className="mb-5 text-lg font-bold text-slate-800">Encontre um registro</h2>
@@ -27,8 +33,9 @@ export function HistoryFilters({ filters, onChange, onSubmit }: HistoryFiltersPr
             value={filters.profile}
             onChange={(event) => onChange({ ...filters, profile: event.target.value as FreightHistoryFilters["profile"] })}
           >
-            <option value="cliente">Cliente</option>
-            <option value="prestador">Prestador</option>
+            {allowedProfiles.map((profile) => (
+              <option key={profile} value={profile}>{profileLabels[profile]}</option>
+            ))}
           </select>
         </label>
 
