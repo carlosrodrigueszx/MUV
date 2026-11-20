@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 import { ProviderLayout } from "../components/layout/ProviderLayout";
-import { createVehicleMockApi } from "../features/vehicles/api/vehicleMockApi";
+import { createVehicleApi } from "../features/vehicles/api/vehicleApi";
 import { useVehicles } from "../features/vehicles/hooks/useVehicles";
 import { VehicleList } from "../features/vehicles/components/VehicleList";
 import { VehicleForm } from "../features/vehicles/components/VehicleForm";
 import type { Vehicle, NewVehiclePayload } from "../features/vehicles/types";
 
 export default function Vehicles() {
-  const api = useMemo(() => createVehicleMockApi(), []);
+  const api = useMemo(() => createVehicleApi(), []);
   const { vehicles, loading, error, createVehicle, updateVehicle } =
     useVehicles(api);
 
@@ -61,7 +61,7 @@ export default function Vehicles() {
         </div>
 
         <div className="rounded-xl border border-[#e1e8e9] bg-white p-5">
-          <p className="text-sm text-[#637479]">Veículos cadastrados</p>
+            <p className="text-sm text-[#637479]">Veículos cadastrados</p>
           <p className="mt-1 text-3xl font-bold text-[#1d2d32]">
             {vehicles.length}
           </p>
@@ -69,6 +69,7 @@ export default function Vehicles() {
 
         {formOpen && (
           <VehicleForm
+            key={selectedVehicle?.id ?? "new-vehicle"}
             vehicle={selectedVehicle}
             onSubmit={handleSubmit}
             onClose={() => setFormOpen(false)}

@@ -1,7 +1,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Vehicle, NewVehiclePayload } from "../types";
-import type { VehicleApi } from "../api/vehicleMockApi";
+import type { VehicleApi } from "../api/vehicleApi";
 
 export function useVehicles(api: VehicleApi) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -15,16 +15,28 @@ export function useVehicles(api: VehicleApi) {
     try {
       const result = await api.listVehicles();
       setVehicles(result);
-    } catch {
-      setError("Não foi possível carregar os veículos.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Não foi possível carregar os veículos.");
     } finally {
       setLoading(false);
     }
   }, [api]);
 
   useEffect(() => {
-    void loadVehicles();
-  }, [loadVehicles]);
+    let active = true;
+    api.listVehicles().then(result => {
+      if (active) setVehicles(result);
+    }).catch(error => {
+      if (active) {
+        setError(error instanceof Error ? error.message : "Não foi possível carregar os veículos.");
+      }
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [api]);
 
   const createVehicle = useCallback(async (payload: NewVehiclePayload) => {
     await api.createVehicle(payload);
