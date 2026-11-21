@@ -15,6 +15,10 @@ import DriverLinking from "../pages/DriverLinking";
 import FreightHistory from "../pages/FreightHistory";
 import ClientePrestadores from "../pages/ClientePrestadores";
 import PlanejarViagem from "../pages/PlanejarViagem";
+import {
+  DesignarRecursosPage,
+  SubstituirRecursosPage,
+} from "../features/designacao/DesignacaoPages";
 
 export const Router: React.FC = () => {
   return (
@@ -32,6 +36,8 @@ export const Router: React.FC = () => {
         <Route path="/prestador/veiculos" element={<Vehicles />} />
         <Route path="/prestador/motoristas" element={<DriverLinking />} />
         <Route path="/prestador/historico" element={<FreightHistory />} />
+        <Route path="/prestador/fretes/:id/designacao" element={<DesignarRecursosPage />} />
+        <Route path="/prestador/fretes/:id/substituicao" element={<SubstituirRecursosPage />} />
         <Route path="/cliente/solicitacoes/:id/propostas" element={<CompararPropostas />} />
         <Route path="/cliente/fretes/:id" element={<FreteContratado />} />
         <Route path="/cliente/historico" element={<FreightHistory />} />
