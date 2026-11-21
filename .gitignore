@@ -150,9 +150,6 @@ vite.config.ts.timestamp-*
 
 # outros
 docker-compose.yaml
-design.md
-requirements.md
-task.md
 
 # Relatórios acadêmicos e evidências de testes
 docs/testes/

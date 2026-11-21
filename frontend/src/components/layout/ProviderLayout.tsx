@@ -11,8 +11,9 @@ interface ProviderLayoutProps {
   activeNavKey: string;
   organizationName?: string;
   organizationVerified?: boolean;
+  profileLabel?: string;
   avatarUrl?: string | null;
-  isOnline?: boolean;
+  isOnline?: boolean | null;
   onOnlineChange?: (online: boolean) => void;
   onNotificationsClick?: () => void;
   /** Contadores por `key` do item de navegação (ex.: { requests: 3 }). */
@@ -28,6 +29,7 @@ export function ProviderLayout({
   activeNavKey,
   organizationName = "",
   organizationVerified = false,
+  profileLabel,
   avatarUrl,
   isOnline = false,
   onOnlineChange,
@@ -109,7 +111,7 @@ export function ProviderLayout({
                 {organizationName}
               </span>
               <span className="text-[11px] leading-4 text-[#637479]">
-                {organizationVerified ? "Empresa · Verificada" : "Empresa"}
+                {profileLabel ?? (organizationVerified ? "Empresa · Verificada" : "Empresa")}
               </span>
             </div>
           </div>
@@ -132,7 +134,7 @@ export function ProviderLayout({
           </nav>
 
           <div className="flex items-center gap-[18px]">
-            <button
+            {isOnline !== null && <button
               type="button"
               role="switch"
               aria-checked={isOnline}
@@ -153,7 +155,7 @@ export function ProviderLayout({
               >
                 {isOnline ? "Você está online" : "Você está offline"}
               </span>
-            </button>
+            </button>}
             <span className="h-[22px] w-px bg-[#dfe6e7]" />
             <button
               type="button"
