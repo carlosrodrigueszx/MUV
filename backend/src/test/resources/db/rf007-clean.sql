@@ -1,0 +1,14 @@
+DELETE FROM notificacao WHERE solicitacao_id IN (907031,907032);
+DELETE FROM proposta WHERE id_solicitacao IN (907031,907032);
+DELETE FROM recusa_solicitacao WHERE id_solicitacao IN (907031,907032);
+DELETE FROM solicitacao_parada WHERE id_solicitacao IN (907031,907032);
+DELETE FROM solicitacao_pessoa WHERE id=907031;
+DELETE FROM solicitacao_encomenda WHERE id=907032;
+DELETE FROM solicitacao_frete WHERE id IN (907031,907032);
+DELETE FROM endereco WHERE id IN (907020,907021,907022,907023);
+DELETE FROM autorizacao_modalidade WHERE id IN (907010,907011,907012);
+DELETE FROM prestador_empresa WHERE id=907003;
+DELETE FROM prestador_autonomo WHERE id=907002;
+DELETE FROM prestador WHERE id IN (907002,907003);
+DELETE FROM passageiro WHERE id=907001;
+DELETE FROM usuario WHERE id IN (907001,907002,907003);

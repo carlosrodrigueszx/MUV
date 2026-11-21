@@ -1,0 +1,243 @@
+.rf007 main {
+  color: #1d2d32;
+}
+.rf007 main small,
+.rf007 main p {
+  color: #637479;
+  font-size: 0.82rem;
+}
+.rf007 h1 {
+  font-size: 1.9rem;
+  font-weight: 700;
+  margin: 1.4rem 0 0.25rem;
+}
+.rf-grade {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.4rem;
+  margin-top: 1.4rem;
+}
+.rf007 section,
+.rf007 dialog {
+  background: white;
+  border: 1px solid #dfe6e7;
+  border-radius: 16px;
+  padding: 1.45rem;
+  box-shadow: 0 4px 12px #1d2d320d;
+}
+.rf-grade section {
+  margin-bottom: 1.25rem;
+}
+.rf007 hr {
+  border: 0;
+  border-top: 1px solid #dfe6e7;
+  margin: 1.3rem 0;
+}
+.rf007 h2 {
+  font-weight: 650;
+  font-size: 1.12rem;
+}
+.rf007 .rf-preco {
+  font-weight: 750;
+  font-size: 2rem;
+}
+.rf-linha,
+.rf-barra,
+.rf-acoes,
+.rf-oferta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.rf-linha b {
+  display: block;
+}
+.rf-itinerario { margin: 1.25rem 0 0; }
+.rf-itinerario li {
+  display: grid;
+  grid-template-columns: 4rem 10px minmax(0, 1fr);
+  column-gap: .75rem;
+  position: relative;
+  padding-bottom: 1.8rem;
+  font-size: .875rem;
+}
+.rf-itinerario li:last-child { padding-bottom: 0; }
+.rf-itinerario time { color: #637479; font-variant-numeric: tabular-nums; }
+.rf-itinerario time small { display: block; }
+.rf-itinerario strong { overflow-wrap: anywhere; font-weight: 600; }
+.rf-itinerario i {
+  width: 10px; height: 10px; margin-top: 5px;
+  background: white; border: 2px solid #17695b; border-radius: 50%;
+}
+.rf-itinerario li:first-child i { background: #17695b; }
+.rf-itinerario li:not(:last-child)::after {
+  content: ""; position: absolute; top: 16px; bottom: -4px;
+  left: calc(4rem + .75rem + 4px); width: 2px; background: #dfe6e7;
+}
+.rf007 .rf-mapa {
+  position: relative;
+  overflow: hidden;
+  min-height: 300px;
+  aspect-ratio: 557/367;
+  background: #e6eee9;
+  color: #165648;
+  display: flex;
+  align-items: center;
+}
+.rf-cartografia { position: absolute; inset: 0; z-index: 0; }
+.rf-pin { background: #17695b; color: white; border: 3px solid white; border-radius: 50%; text-align: center; line-height: 18px; font-weight: 700; }
+.rf-mapa-aviso { position: relative; margin: auto; padding: .5rem .75rem; background: white; border-radius: 8px; pointer-events: none; }
+.rf-legenda {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  background: white;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.rf-pessoa span {
+  background: #17695b;
+  color: white;
+  border-radius: 100%;
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+}
+.rf-pessoa {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.rf-pessoa span {
+  width: 44px;
+  height: 44px;
+  background: #e5f2ee;
+  color: #17695b;
+  font-weight: 650;
+}
+.rf-metricas {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.rf-metricas:not(:empty) {
+  padding-bottom: 1.2rem;
+  border-bottom: 1px solid #dfe6e7;
+  margin-bottom: 1rem;
+}
+.rf-metricas small {
+  display: block;
+}
+.rf007 main aside {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  background: #e6f3ee;
+  color: #17695b;
+  padding: 1rem;
+  margin-top: 1.25rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+.rf007 main button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  background: white;
+  color: #17695b;
+  border: 1px solid #dfe6e7;
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.rf007 main button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.rf007 main .rf-principal {
+  background: #17695b;
+  color: white;
+}
+.rf007 main .rf-recusar {
+  background: #fbeeed;
+  color: #aa3439;
+}
+.rf007 dialog {
+  margin: auto;
+  width: min(636px, 94vw);
+  max-height: 92dvh;
+  padding: 2rem;
+}
+.rf007 dialog::backdrop {
+  background: #142f37ad;
+}
+.rf007 dialog h2 {
+  font-size: 1.6rem;
+  margin-top: 1rem;
+}
+.rf007 dialog label {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.rf007 input,
+.rf007 textarea {
+  width: 100%;
+  padding: 0.85rem;
+  border: 1px solid #bacacd;
+  border-radius: 8px;
+}
+.rf007 textarea {
+  min-height: 6rem;
+}
+.rf-oferta {
+  margin: 1.4rem 0;
+  background: #f5f7f8;
+  border-radius: 8px;
+  padding: 1rem;
+}
+.rf007 dialog .rf-acoes button {flex:1}
+.rf007 dialog h2 {color:#1d2d32}
+.rf007 dialog form > .rf-linha:first-child small {background:#eff3f4;padding:5px 12px;border-radius:999px;font-size:11px;font-weight:600}
+.rf007 dialog button[aria-label="Fechar"] {border:none;padding:6px;font-size:18px}
+.rf007 dialog .rf-acoes {
+  border-top: 1px solid #dfe6e7;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+}
+.rf007 [role="alert"] {
+  color: #a62d37;
+  padding: 0.6rem 0;
+}
+@media (max-width: 850px) {
+  .rf007 > div > aside {
+    display: none;
+  }
+  .rf007 main {
+    padding: 1rem;
+  }
+  .rf-grade {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .rf-barra,
+  .rf-acoes {
+    flex-wrap: wrap;
+  }
+  .rf007 header {
+    padding: 1rem;
+  }
+  .rf007 dialog {
+    padding: 1rem;
+  }
+}
