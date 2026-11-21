@@ -1,10 +1,12 @@
+import { Link } from "react-router-dom";
 import type { FreightHistoryRecord } from "../types";
 
 interface HistoryDetailsProps {
   record: FreightHistoryRecord | null;
+  cliente?: boolean;
 }
 
-export function HistoryDetails({ record }: HistoryDetailsProps) {
+export function HistoryDetails({ record, cliente }: HistoryDetailsProps) {
   return (
     <section id="freight-details" className="grid scroll-mt-28 grid-cols-1 gap-5 lg:grid-cols-2">
       <article className="self-start rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
@@ -30,6 +32,16 @@ export function HistoryDetails({ record }: HistoryDetailsProps) {
               )}
             </div>
 
+            {cliente && record.id.startsWith("SL-") && (
+              <Link className="mt-4 inline-block font-semibold text-[#176A5B]" to={`/cliente/solicitacoes/${record.id.slice(3)}/propostas`}>
+                Comparar propostas
+              </Link>
+            )}
+            {cliente && record.id.startsWith("FR-") && (
+              <Link className="mt-4 inline-block font-semibold text-[#176A5B]" to={`/cliente/fretes/${record.id.slice(3)}`}>
+                Ver frete contratado
+              </Link>
+            )}
             <div className="mt-5 rounded-xl bg-[#E2F1ED] p-4 text-sm text-slate-700">
               <h3 className="font-bold text-[#15584D]">Condições preservadas</h3>
               <p className="mt-1 leading-relaxed">{record.request.preservedConditions}</p>

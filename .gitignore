@@ -151,7 +151,9 @@ vite.config.ts.timestamp-*
 # outros
 docker-compose.yaml
 
-# Relatórios acadêmicos e evidências de testes
+# Relatórios acadêmicos e testes
+docs/RF004-CADASTRO-GESTAO-VEICULOS.md
+docs/RF008-RELATORIO-DE-TESTES.md
 docs/testes/
 
 # Fixtures SQL locais de RF005

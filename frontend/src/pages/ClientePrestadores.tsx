@@ -114,7 +114,7 @@ function ProviderCard({ provider, onAction, onSelect, selected }: ProviderCardPr
           type="button"
           aria-pressed={onSelect ? selected : undefined}
           onClick={onSelect ?? (() => onAction("O envio de solicitações ainda não está conectado."))}
-          className="h-[42px] min-w-[194px] rounded-[8px] bg-[#17695b] px-[18px] text-[13px] font-semibold text-white transition-colors hover:bg-[#12584d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]"
+          className="h-[42px] min-w-[194px] rounded-[8px] bg-[#17695b] px-[18px] text-[13px] font-semibold text-white cursor-pointer transition-colors hover:bg-[#12584d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]"
         >
           {onSelect ? (selected ? "Prestador selecionado" : "Selecionar prestador") : "Solicitar a este prestador"}
         </button>
@@ -123,7 +123,7 @@ function ProviderCard({ provider, onAction, onSelect, selected }: ProviderCardPr
           onClick={() =>
             onAction("Os detalhes estarão disponíveis quando houver dados do prestador.")
           }
-          className="h-[42px] min-w-[102px] rounded-[8px] border border-[#dfe7e8] bg-white px-[18px] text-[13px] font-semibold text-[#17695b] transition-colors hover:bg-[#f5f7f8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]"
+          className="h-[42px] min-w-[102px] rounded-[8px] border border-[#dfe7e8] bg-white px-[18px] text-[13px] font-semibold text-[#17695b] cursor-pointer transition-colors hover:bg-[#f5f7f8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]"
         >
           Ver dados
         </button>}
@@ -396,13 +396,13 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
               </label>
               <button
                 type="submit"
-                className="h-[46px] rounded-[8px] bg-[#17695b] px-[18px] text-[13px] font-semibold text-white transition-colors hover:bg-[#12584d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b] max-md:w-full"
+                className="h-[46px] rounded-[8px] bg-[#17695b] px-[18px] text-[13px] font-semibold text-white cursor-pointer transition-colors hover:bg-[#12584d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b] max-md:w-full"
               >
                 Pesquisar
               </button>
             </form>
             {trip && <div className="flex flex-wrap items-center justify-between gap-3">
-              <button type="button" onClick={clearFilters} className="text-sm font-semibold text-[#17695b] underline">Limpar filtros</button>
+              <button type="button" onClick={clearFilters} className="cursor-pointer text-sm font-semibold text-[#17695b] underline transition-colors hover:text-[#0e4940] hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]">Limpar filtros</button>
               <label className="flex flex-wrap items-center gap-2 text-sm">
                 Ordenar por
                 <select value={sortByName ? "nome" : ""} onChange={event => setSortByName(event.target.value === "nome")}
@@ -490,7 +490,7 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
             onClick={() =>
               setFeedback("O envio de solicitações ainda não está conectado.")
             }
-            className="h-[42px] rounded-[8px] border border-[#dfe7e8] bg-white px-[18px] text-[13px] font-semibold text-[#17695b] transition-colors hover:bg-[#f5f7f8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]"
+            className="h-[42px] rounded-[8px] border border-[#dfe7e8] bg-white px-[18px] text-[13px] font-semibold text-[#17695b] cursor-pointer transition-colors hover:bg-[#f5f7f8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]"
           >
             Criar solicitação aberta
           </button>
