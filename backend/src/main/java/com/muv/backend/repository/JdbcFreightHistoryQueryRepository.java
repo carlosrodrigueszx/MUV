@@ -68,7 +68,7 @@ public class JdbcFreightHistoryQueryRepository implements FreightHistoryQueryRep
                     ))
                     OR COALESCE(f.status, s.status) = :status
                 )
-                AND (:monthStart IS NULL OR
+                AND (CAST(:monthStart AS TIMESTAMP) IS NULL OR
                      COALESCE(f.data_hora_conclusao, f.criado_em, s.data_hora_pretendida) >= :monthStart
                      AND COALESCE(f.data_hora_conclusao, f.criado_em, s.data_hora_pretendida) < :monthEnd)
             ORDER BY data_referencia DESC, s.id DESC

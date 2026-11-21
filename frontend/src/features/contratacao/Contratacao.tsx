@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { canCancelFreight } from "../freight-cancellation/api";
 import { AccountNavbar } from "../freight-history/components/AccountNavbar";
 import { aceitar, comparar, detalhar } from "./api";
 import type { Solicitacao } from "./api";
@@ -177,6 +178,9 @@ export function FreteContratado() {
             {frete.status === "AGUARDANDO_DESIGNACAO" && <p className="mt-1">O prestador deverá designar um motorista e um veículo compatíveis antes de iniciar o serviço.</p>}
           </div>
           <Link className={primario + " w-fit"} to={historico}>Acompanhar frete</Link>
+          {canCancelFreight(frete.status) && (
+            <Link className={botao + " w-fit"} to={`/fretes/${frete.id}/cancelar`}>Cancelar frete</Link>
+          )}
           <Link className={botao + " w-fit"} to={historico + "#freight-details"}>Ver histórico da solicitação</Link>
         </section>
         {outrasPropostas.length > 0 && <section className={painel + " grid gap-4"}>

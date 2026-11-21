@@ -28,7 +28,7 @@ export default function FreightHistory() {
     : "cliente";
 
   const query = new URLSearchParams(location.search);
-  const freight = routeProfile === "cliente" ? query.get("frete") : null;
+  const freight = query.get("frete");
   const period = freight ? query.get("periodo") : null;
   return <FreightHistoryContent
     key={routeProfile + location.search}

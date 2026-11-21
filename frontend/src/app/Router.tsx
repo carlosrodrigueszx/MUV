@@ -7,6 +7,7 @@ import {
   RegisterPage,
   ResetPage,
 } from "../features/auth/AuthPages";
+import FreightCancellationPage from "../features/freight-cancellation/FreightCancellationPage";
 import PaginaAvaliacao from "../features/propostas/Avaliacao";
 import { CompararPropostas, FreteContratado } from "../features/contratacao/Contratacao";
 import Home from "../pages/Home";
@@ -31,6 +32,7 @@ export const Router: React.FC = () => {
         <Route path="/cadastro" element={<RegisterPage />} />
         <Route path="/recuperar-senha" element={<RecoveryPage />} />
         <Route path="/redefinir-senha" element={<ResetPage />} />
+        <Route path="/fretes/:freteId/cancelar" element={<FreightCancellationPage />} />
         <Route path="/conta" element={<AccountPage />} />
         <Route path="/prestador/solicitacoes/:id/avaliacao" element={<PaginaAvaliacao />} />
         <Route path="/prestador/veiculos" element={<Vehicles />} />
