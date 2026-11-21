@@ -8,6 +8,7 @@ import {
   ResetPage,
 } from "../features/auth/AuthPages";
 import PaginaAvaliacao from "../features/propostas/Avaliacao";
+import { CompararPropostas, FreteContratado } from "../features/contratacao/Contratacao";
 import Home from "../pages/Home";
 import Vehicles from "../pages/Vehicles";
 import DriverLinking from "../pages/DriverLinking";
@@ -31,6 +32,8 @@ export const Router: React.FC = () => {
         <Route path="/prestador/veiculos" element={<Vehicles />} />
         <Route path="/prestador/motoristas" element={<DriverLinking />} />
         <Route path="/prestador/historico" element={<FreightHistory />} />
+        <Route path="/cliente/solicitacoes/:id/propostas" element={<CompararPropostas />} />
+        <Route path="/cliente/fretes/:id" element={<FreteContratado />} />
         <Route path="/cliente/historico" element={<FreightHistory />} />
       </Routes>
     </BrowserRouter>

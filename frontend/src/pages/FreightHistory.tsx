@@ -12,12 +12,12 @@ import {
   type FreightHistoryRecord,
 } from "../features/freight-history";
 
-function initialFilters(profile: FreightHistoryFilters["profile"]): FreightHistoryFilters {
+function initialFilters(profile: FreightHistoryFilters["profile"], month = "2026-11"): FreightHistoryFilters {
   return {
     profile,
     modality: "todas",
     status: "todas",
-    month: "2026-11",
+    month,
   };
 }
 
@@ -27,13 +27,25 @@ export default function FreightHistory() {
     ? "prestador"
     : "cliente";
 
-  return <FreightHistoryContent key={routeProfile} routeProfile={routeProfile} />;
+  const query = new URLSearchParams(location.search);
+  const freight = routeProfile === "cliente" ? query.get("frete") : null;
+  const period = freight ? query.get("periodo") : null;
+  return <FreightHistoryContent
+    key={routeProfile + location.search}
+    routeProfile={routeProfile}
+    preferredId={freight ? `FR-${freight}` : null}
+    period={period && /^\d{4}-(0[1-9]|1[0-2])$/.test(period) ? period : undefined}
+  />;
 }
 
 function FreightHistoryContent({
   routeProfile,
+  preferredId,
+  period,
 }: {
   routeProfile: FreightHistoryFilters["profile"];
+  preferredId: string | null;
+  period?: string;
 }) {
   const navigate = useNavigate();
   const historyService = useMemo(
@@ -43,11 +55,11 @@ function FreightHistoryContent({
       }),
     [],
   );
-  const [draftFilters, setDraftFilters] = useState(() => initialFilters(routeProfile));
-  const [appliedFilters, setAppliedFilters] = useState(() => initialFilters(routeProfile));
+  const [draftFilters, setDraftFilters] = useState(() => initialFilters(routeProfile, period));
+  const [appliedFilters, setAppliedFilters] = useState(() => initialFilters(routeProfile, period));
   const [records, setRecords] = useState<FreightHistoryRecord[]>([]);
   const [allowedProfiles, setAllowedProfiles] = useState<AccountProfile[] | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(preferredId);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [requestVersion, setRequestVersion] = useState(0);
@@ -125,6 +137,12 @@ function FreightHistoryContent({
   }, [allowedProfiles, appliedFilters, historyService, navigate, requestVersion]);
 
   const selectedRecord = records.find((record) => record.id === selectedId) ?? null;
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!loading && selectedRecord?.id === preferredId && hash === "#freight-details") {
+      document.getElementById("freight-details")?.scrollIntoView();
+    }
+  }, [hash, loading, preferredId, selectedRecord]);
 
   return (
     <div className="min-h-screen bg-[#F4F7F8] text-slate-900 antialiased">
@@ -166,7 +184,7 @@ function FreightHistoryContent({
           ) : (
             <HistoryList records={records} selectedId={selectedId} onSelect={(record) => setSelectedId(record.id)} />
           )}
-          <HistoryDetails record={selectedRecord} />
+          <HistoryDetails record={selectedRecord} cliente={routeProfile === "cliente"} />
         </div>
 
         
