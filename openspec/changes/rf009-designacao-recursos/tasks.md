@@ -55,7 +55,7 @@
 
 - [x] 8.1 Executar `npm run build` no frontend e os testes unitários, MockMvc, integração e Selenium da etapa 1 no backend com PostgreSQL de teste; registrar comandos, contagem e resultados reais no relatório da mudança.
 - [x] 8.2 Revisar o diff da etapa 1 e confirmar que cadastro/autenticação do autônomo e demais arquivos do RF002 não foram modificados; registrar explicitamente que o RF009 continua parcial e não pode ser arquivado.
-- [ ] 8.3 Publicar ou integrar a etapa organizacional somente após revisão da equipe e verificar novamente que todas as tarefas posteriores permanecem desmarcadas no OpenSpec.
+- [x] 8.3 Publicar ou integrar a etapa organizacional somente após revisão da equipe e verificar novamente que todas as tarefas posteriores permanecem desmarcadas no OpenSpec.
 
 ## 9. Etapa 2 — Integração obrigatória com o RF002
 

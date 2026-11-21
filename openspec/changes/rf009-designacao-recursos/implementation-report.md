@@ -191,3 +191,11 @@ A implementação foi retomada após a integração do PR #20 na `main` (`6cfa45
 - `.gitignore`, o arquivo temporário de DOCX e os três `package-lock.json` não fazem parte da implementação do RF009; eram alterações/arquivos preexistentes e foram preservados. `npm ci` não gerou diff nos lockfiles.
 - Os únicos arquivos compartilhados modificados pelo RF009 são `Router.tsx` e `ProviderLayout.tsx`, ambos após a autorização registrada na tarefa 1.4 e com alterações limitadas a duas rotas e responsividade.
 - Esta é somente a etapa organizacional. As tarefas obrigatórias da integração com RF002 continuam abertas; portanto, o RF009 permanece parcial e não pode ser arquivado.
+
+## Publicação da etapa organizacional
+
+- A equipe autorizou a publicação após a revisão da etapa organizacional.
+- Branch publicada: `feat/rf009-designacao-recursos`.
+- Commit confirmado no remoto: `c5ff89d0b96c5f0e8974a278673ff093ec10eca9` (`feat(rf009): implementar designacao organizacional`).
+- No momento da publicação, `origin/main` permanecia em `6cfa45b`, sem divergência em relação à base da branch e sem outra migração V9.
+- Após a publicação, todas as tarefas 9.x e 10.x foram verificadas e permanecem desmarcadas; nenhuma integração dependente do RF002 ou RF010 foi declarada como concluída.
