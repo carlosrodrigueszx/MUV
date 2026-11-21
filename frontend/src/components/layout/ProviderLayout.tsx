@@ -11,8 +11,9 @@ interface ProviderLayoutProps {
   activeNavKey: string;
   organizationName?: string;
   organizationVerified?: boolean;
+  profileLabel?: string;
   avatarUrl?: string | null;
-  isOnline?: boolean;
+  isOnline?: boolean | null;
   onOnlineChange?: (online: boolean) => void;
   onNotificationsClick?: () => void;
   /** Contadores por `key` do item de navegação (ex.: { requests: 3 }). */
@@ -28,6 +29,7 @@ export function ProviderLayout({
   activeNavKey,
   organizationName = "",
   organizationVerified = false,
+  profileLabel,
   avatarUrl,
   isOnline = false,
   onOnlineChange,
@@ -39,11 +41,11 @@ export function ProviderLayout({
 }: ProviderLayoutProps) {
   return (
     <div
-      className="flex min-h-screen bg-[#f5f7f8] text-[#1d2d32] antialiased"
+      className="flex min-h-screen flex-col bg-[#f5f7f8] text-[#1d2d32] antialiased md:flex-row"
       style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}
     >
       {/* Navegação do prestador */}
-      <aside className="sticky top-0 flex h-screen w-[232px] shrink-0 flex-col gap-[30px] overflow-y-auto border-r border-[#dfe6e7] bg-white pt-7 pr-5 pb-6 pl-5">
+      <aside className="flex w-full shrink-0 flex-col gap-4 overflow-hidden border-b border-[#dfe6e7] bg-white px-4 py-4 md:sticky md:top-0 md:h-screen md:w-[232px] md:gap-[30px] md:overflow-y-auto md:border-r md:border-b-0 md:pt-7 md:pr-5 md:pb-6 md:pl-5">
         <Link to="/" className="flex items-center gap-[9px]">
           <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#17695b] text-white">
             <LuRoute size={20} />
@@ -53,11 +55,11 @@ export function ProviderLayout({
           </span>
         </Link>
 
-        <span className="w-fit rounded-full bg-[#eff3f4] px-2.5 py-[5px] text-[11px] leading-4 font-semibold text-[#637479]">
+        <span className="hidden w-fit rounded-full bg-[#eff3f4] px-2.5 py-[5px] text-[11px] leading-4 font-semibold text-[#637479] md:inline-flex">
           PORTAL DO PRESTADOR
         </span>
 
-        <nav aria-label="Portal do prestador" className="flex flex-col gap-[7px]">
+        <nav aria-label="Portal do prestador" className="flex gap-[7px] overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
           {navItems.map(({ key, label, to, icon: Icon }) => {
             const active = key === activeNavKey;
             const badge = navBadges[key];
@@ -66,7 +68,7 @@ export function ProviderLayout({
                 key={key}
                 to={to}
                 aria-current={active ? "page" : undefined}
-                className={`flex h-[46px] items-center gap-3 rounded-[10px] px-[13px] text-[13px] leading-[19px] font-medium transition-colors ${
+                className={`flex h-[46px] shrink-0 items-center gap-3 rounded-[10px] px-[13px] text-[13px] leading-[19px] font-medium transition-colors ${
                   active
                     ? "bg-[#e5f2ee] text-[#17695b]"
                     : "text-[#637479] hover:bg-[#f5f7f8]"
@@ -84,7 +86,7 @@ export function ProviderLayout({
           })}
         </nav>
 
-        <div className="flex flex-col gap-2.5 rounded-xl bg-[#f5f7f8] p-[15px]">
+        <div className="hidden flex-col gap-2.5 rounded-xl bg-[#f5f7f8] p-[15px] md:flex">
           <LuHeadset size={20} className="text-[#17695b]" />
           <p className="text-[13px] leading-[19px] font-semibold text-[#1d2d32]">
             Conte com a gente
@@ -100,7 +102,7 @@ export function ProviderLayout({
           </a>
         </div>
 
-        <div className="flex flex-col gap-3.5">
+        <div className="hidden flex-col gap-3.5 md:flex">
           <div className="h-px bg-[#dfe6e7]" />
           <div className="flex items-center gap-2.5">
             <Avatar src={avatarUrl} alt="" size={36} />
@@ -109,7 +111,7 @@ export function ProviderLayout({
                 {organizationName}
               </span>
               <span className="text-[11px] leading-4 text-[#637479]">
-                {organizationVerified ? "Empresa · Verificada" : "Empresa"}
+                {profileLabel ?? (organizationVerified ? "Empresa · Verificada" : "Empresa")}
               </span>
             </div>
           </div>
@@ -124,7 +126,7 @@ export function ProviderLayout({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Barra superior */}
-        <header className="flex h-20 shrink-0 items-center justify-between bg-white px-9">
+        <header className="flex min-h-20 shrink-0 flex-wrap items-center justify-between gap-3 bg-white px-4 py-4 sm:px-6 md:h-20 md:px-9 md:py-0">
           <nav aria-label="Navegação estrutural" className="flex items-center gap-2.5 text-[13px] leading-[19px]">
             <span className="text-[#637479]">Área do prestador</span>
             <LuChevronRight size={14} className="text-[#637479]" />
@@ -132,7 +134,7 @@ export function ProviderLayout({
           </nav>
 
           <div className="flex items-center gap-[18px]">
-            <button
+            {isOnline !== null && <button
               type="button"
               role="switch"
               aria-checked={isOnline}
@@ -153,7 +155,7 @@ export function ProviderLayout({
               >
                 {isOnline ? "Você está online" : "Você está offline"}
               </span>
-            </button>
+            </button>}
             <span className="h-[22px] w-px bg-[#dfe6e7]" />
             <button
               type="button"
@@ -167,7 +169,7 @@ export function ProviderLayout({
           </div>
         </header>
 
-        <main className="px-9 pt-9 pb-9">{children}</main>
+        <main className="px-4 pt-6 pb-9 sm:px-6 md:px-9 md:pt-9">{children}</main>
       </div>
     </div>
   );

@@ -40,8 +40,10 @@ public class DriverLinkingController {
             @RequestParam(required = false) String modalidade,
             @RequestParam(required = false) String cidade,
             @RequestParam(required = false) String estado,
-            @RequestParam(required = false) String tipo) {
-        return ResponseEntity.ok(prestadorConsultaService.buscar(modalidade, cidade, estado, tipo));
+            @RequestParam(required = false) String tipo,
+            @RequestParam(required = false) Integer quantidadePassageiros) {
+        return ResponseEntity.ok(prestadorConsultaService.buscar(
+                modalidade, cidade, estado, tipo, quantidadePassageiros));
     }
 
     @GetMapping("/motoristas/perfil")

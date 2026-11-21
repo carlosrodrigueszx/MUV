@@ -16,7 +16,8 @@ public class FreightCancellationRepository {
     public record Freight(long id, long clienteId, long prestadorId, String status) {}
     public record Details(long id, long clienteId, long prestadorId, String status,
                           String clienteNome, String prestadorNome, String modalidade,
-                          String origem, String destino, LocalDateTime dataHoraPretendida) {}
+                          String origem, String destino, LocalDateTime dataHoraPretendida,
+                          LocalDateTime contratadoEm) {}
     // dataHora is UTC, following the RF011 contract for the existing TIMESTAMP column.
     public record CancellationEvent(String autor, LocalDateTime dataHora, String justificativa) {}
 
@@ -34,7 +35,7 @@ public class FreightCancellationRepository {
         return db.sql("""
                 SELECT f.id, s.id_passageiro, f.prestador_responsavel_id, f.status,
                        c.nome AS cliente_nome, p.nome AS prestador_nome, s.modalidade,
-                       o.cidade AS origem, d.cidade AS destino, s.data_hora_pretendida
+                       o.cidade AS origem, d.cidade AS destino, s.data_hora_pretendida, f.criado_em
                 FROM frete f JOIN solicitacao_frete s ON s.id = f.solicitacao_id
                 JOIN usuario c ON c.id = s.id_passageiro
                 JOIN usuario p ON p.id = f.prestador_responsavel_id
@@ -45,7 +46,8 @@ public class FreightCancellationRepository {
                 rs.getLong("id_passageiro"), rs.getLong("prestador_responsavel_id"), rs.getString("status"),
                 rs.getString("cliente_nome"), rs.getString("prestador_nome"), rs.getString("modalidade"),
                 rs.getString("origem"), rs.getString("destino"),
-                rs.getTimestamp("data_hora_pretendida").toLocalDateTime())).optional();
+                rs.getObject("data_hora_pretendida", LocalDateTime.class),
+                rs.getObject("criado_em", LocalDateTime.class))).optional();
     }
 
     public Optional<CancellationEvent> findCancellation(long id) {

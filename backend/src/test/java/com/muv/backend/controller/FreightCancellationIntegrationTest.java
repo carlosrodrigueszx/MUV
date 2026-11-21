@@ -1,5 +1,8 @@
 package com.muv.backend.controller;
 
+import com.muv.backend.dto.DesignacaoFrete.ComandoDesignacao;
+import com.muv.backend.dto.DesignacaoFrete.ComandoSubstituicao;
+import com.muv.backend.service.DesignacaoService;
 import com.muv.backend.service.FreightCancellationService;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -48,6 +51,7 @@ class FreightCancellationIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired PasswordEncoder passwords;
     @Autowired FreightCancellationService service;
+    @Autowired DesignacaoService designacao;
     @Autowired PlatformTransactionManager transactions;
 
     @ParameterizedTest
@@ -56,7 +60,8 @@ class FreightCancellationIntegrationTest {
         state(state);
         var session = login("cliente");
         mvc.perform(get(PATH).session(session)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.autorPapel").value("Cliente"));
+                .andExpect(jsonPath("$.autorPapel").value("Cliente"))
+                .andExpect(jsonPath("$.frete.contratadoEm").value("2026-10-21T14:00:00"));
         send(session, "{\"justificativa\":\"  Mudança de planos  \",\"autorId\":11003}", 204);
         assertCancellation(11001, 11002);
         mvc.perform(get(PATH).session(session)).andExpect(status().isOk())
@@ -64,6 +69,13 @@ class FreightCancellationIntegrationTest {
                 .andExpect(jsonPath("$.registro.autor").value("Cliente RF011"))
                 .andExpect(jsonPath("$.registro.justificativa").value("Mudança de planos"))
                 .andExpect(jsonPath("$.registro.dataHora").isNotEmpty());
+        mvc.perform(get("/api/historico-fretes").session(session)
+                        .param("perfil", "CLIENTE").param("situacao", "CANCELADO"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value("FR-11010"))
+                .andExpect(jsonPath("$[0].status").value("Cancelado"))
+                .andExpect(jsonPath("$[0].timeline[0].title").value("Frete cancelado"))
+                .andExpect(jsonPath("$[0].timeline[0].description").value("Por Cliente RF011. Mudança de planos"));
         send(session, "{\"justificativa\":\"Segundo envio\"}", 409);
         assertCancellation(11001, 11002);
     }
@@ -205,6 +217,33 @@ class FreightCancellationIntegrationTest {
                 waitForBlockedTransaction();
             });
             assertThat(future.get().get(10, TimeUnit.SECONDS)).isZero();
+            assertCancellation(11001, 11002);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void committedCancellationPreventsConcurrentResourceAssignment(boolean substitution) throws Exception {
+        state(substitution ? "PRONTO_INICIO" : "AGUARDANDO_DESIGNACAO");
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var future = new AtomicReference<Future<?>>();
+            new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+                service.cancel(11010, 11001, "Mudança de planos");
+                future.set(executor.submit(() -> {
+                    if (substitution) {
+                        designacao.substituir(11010, 11002,
+                                new ComandoSubstituicao(11004L, 11005L, "Troca de recurso", 0, null, null));
+                    } else {
+                        designacao.designar(11010, 11002, new ComandoDesignacao(11004L, 11005L, 0));
+                    }
+                }));
+                waitForBlockedTransaction();
+            });
+            assertThatThrownBy(() -> future.get().get(10, TimeUnit.SECONDS))
+                    .isInstanceOf(ExecutionException.class)
+                    .hasCauseInstanceOf(ResponseStatusException.class)
+                    .satisfies(error -> assertThat(((ResponseStatusException) error.getCause())
+                            .getStatusCode().value()).isEqualTo(409));
             assertCancellation(11001, 11002);
         }
     }

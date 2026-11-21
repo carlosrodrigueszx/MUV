@@ -8,12 +8,18 @@ import {
   ResetPage,
 } from "../features/auth/AuthPages";
 import FreightCancellationPage from "../features/freight-cancellation/FreightCancellationPage";
+import PaginaAvaliacao from "../features/propostas/Avaliacao";
+import { CompararPropostas, FreteContratado } from "../features/contratacao/Contratacao";
 import Home from "../pages/Home";
 import Vehicles from "../pages/Vehicles";
 import DriverLinking from "../pages/DriverLinking";
 import FreightHistory from "../pages/FreightHistory";
 import ClientePrestadores from "../pages/ClientePrestadores";
 import PlanejarViagem from "../pages/PlanejarViagem";
+import {
+  DesignarRecursosPage,
+  SubstituirRecursosPage,
+} from "../features/designacao/DesignacaoPages";
 
 export const Router: React.FC = () => {
   return (
@@ -28,9 +34,14 @@ export const Router: React.FC = () => {
         <Route path="/redefinir-senha" element={<ResetPage />} />
         <Route path="/fretes/:freteId/cancelar" element={<FreightCancellationPage />} />
         <Route path="/conta" element={<AccountPage />} />
+        <Route path="/prestador/solicitacoes/:id/avaliacao" element={<PaginaAvaliacao />} />
         <Route path="/prestador/veiculos" element={<Vehicles />} />
         <Route path="/prestador/motoristas" element={<DriverLinking />} />
         <Route path="/prestador/historico" element={<FreightHistory />} />
+        <Route path="/prestador/fretes/:id/designacao" element={<DesignarRecursosPage />} />
+        <Route path="/prestador/fretes/:id/substituicao" element={<SubstituirRecursosPage />} />
+        <Route path="/cliente/solicitacoes/:id/propostas" element={<CompararPropostas />} />
+        <Route path="/cliente/fretes/:id" element={<FreteContratado />} />
         <Route path="/cliente/historico" element={<FreightHistory />} />
       </Routes>
     </BrowserRouter>

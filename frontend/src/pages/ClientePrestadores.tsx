@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useLocation } from "react-router-dom";
 import bellIcon from "../assets/figma/bell.svg";
 import chevronDownIcon from "../assets/figma/chevron-down.svg";
 import routeIcon from "../assets/figma/route.svg";
@@ -7,8 +7,14 @@ import {
   searchProviders,
   type FreightModality,
   type ProviderSearchResult,
+  type ProviderSearchFilters,
   type ProviderType,
 } from "../features/provider-search/api";
+
+import type { TripNavigationState } from "../features/trip-planning/criteria";
+
+const dateTimeFormat = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
+const currencyFormat = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 interface SelectFieldProps {
   id: string;
@@ -55,9 +61,11 @@ function parseRegion(value: string) {
 interface ProviderCardProps {
   provider: ProviderSearchResult;
   onAction: (message: string) => void;
+  onSelect?: () => void;
+  selected: boolean;
 }
 
-function ProviderCard({ provider, onAction }: ProviderCardProps) {
+function ProviderCard({ provider, onAction, onSelect, selected }: ProviderCardProps) {
   const authorizedModalities = provider.modalidadesAutorizadas
     .map((modality) => modality === "PESSOA" ? "Pessoas" : "Encomendas")
     .join(" e ");
@@ -86,7 +94,7 @@ function ProviderCard({ provider, onAction }: ProviderCardProps) {
         </p>
       </div>
       <div className="flex w-full flex-col gap-3 text-[14px] leading-[1.45] text-[#1d2d32]">
-        <p className="font-semibold">Veículos disponíveis</p>
+        <p className="font-semibold">{onSelect ? "Veículos compatíveis" : "Veículos disponíveis"}</p>
         {provider.veiculosDisponiveis.map((vehicle) => (
           <div key={vehicle.id}>
             <p className="font-semibold">
@@ -104,80 +112,96 @@ function ProviderCard({ provider, onAction }: ProviderCardProps) {
       <div className="flex flex-wrap items-start gap-5">
         <button
           type="button"
-          onClick={() =>
-            onAction("O envio de solicitações ainda não está conectado.")
-          }
-          className="h-[42px] min-w-[194px] rounded-[8px] bg-[#17695b] px-[18px] text-[13px] font-semibold text-white transition-colors hover:bg-[#12584d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]"
+          aria-pressed={onSelect ? selected : undefined}
+          onClick={onSelect ?? (() => onAction("O envio de solicitações ainda não está conectado."))}
+          className="h-[42px] min-w-[194px] rounded-[8px] bg-[#17695b] px-[18px] text-[13px] font-semibold text-white cursor-pointer transition-colors hover:bg-[#12584d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]"
         >
-          Solicitar a este prestador
+          {onSelect ? (selected ? "Prestador selecionado" : "Selecionar prestador") : "Solicitar a este prestador"}
         </button>
-        <button
+        {!onSelect && <button
           type="button"
           onClick={() =>
             onAction("Os detalhes estarão disponíveis quando houver dados do prestador.")
           }
-          className="h-[42px] min-w-[102px] rounded-[8px] border border-[#dfe7e8] bg-white px-[18px] text-[13px] font-semibold text-[#17695b] transition-colors hover:bg-[#f5f7f8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]"
+          className="h-[42px] min-w-[102px] rounded-[8px] border border-[#dfe7e8] bg-white px-[18px] text-[13px] font-semibold text-[#17695b] cursor-pointer transition-colors hover:bg-[#f5f7f8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]"
         >
           Ver dados
-        </button>
+        </button>}
       </div>
     </article>
   );
 }
 
 export default function ClientePrestadores() {
-  const [service, setService] = useState<FreightModality | "">("");
+  const { key, state } = useLocation();
+  return <ProviderResults key={key} state={state as TripNavigationState | null} />;
+}
+
+function ProviderResults({ state }: { state: TripNavigationState | null }) {
+  const trip = state?.trip;
+  const tripFilters: ProviderSearchFilters | undefined = trip
+    ? { modalidade: "PESSOA", quantidadePassageiros: trip.passengers }
+    : undefined;
+  const [service, setService] = useState<FreightModality | "">(trip ? "PESSOA" : "");
   const [region, setRegion] = useState("");
   const [providerType, setProviderType] = useState<ProviderType | "">("");
-  const [providers, setProviders] = useState<ProviderSearchResult[]>([]);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [request, setRequest] = useState(tripFilters);
+  const [result, setResult] = useState<{
+    request: ProviderSearchFilters;
+    providers: ProviderSearchResult[];
+    error?: string;
+  }>();
+  const [sortByName, setSortByName] = useState(false);
+  const [selectedId, setSelectedId] = useState<number>();
   const [feedback, setFeedback] = useState("");
-  const activeSearch = useRef<AbortController | null>(null);
 
-  useEffect(() => () => {
-    activeSearch.current?.abort();
-    activeSearch.current = null;
-  }, []);
+  useEffect(() => {
+    if (trip) window.scrollTo(0, 0);
+  }, [trip]);
 
-  async function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    activeSearch.current?.abort();
+  useEffect(() => {
+    if (!request) return;
     const controller = new AbortController();
-    activeSearch.current = controller;
-    setLoading(true);
-    setError("");
-    setHasSearched(true);
+    searchProviders(request, controller.signal).then(providers => {
+      if (!controller.signal.aborted) setResult({ request, providers });
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted) return;
+      setResult({
+        request,
+        providers: [],
+        error: error instanceof Error ? error.message : "Não foi possível consultar os prestadores.",
+      });
+    });
+    return () => controller.abort();
+  }, [request]);
 
-    const filters = parseRegion(region);
-    try {
-      const results = await searchProviders({
-        ...filters,
-        ...(service && { modalidade: service }),
-        ...(providerType && { tipo: providerType }),
-      }, controller.signal);
-      if (activeSearch.current === controller) setProviders(results);
-    } catch (searchError) {
-      if (
-        activeSearch.current === controller &&
-        !(searchError instanceof DOMException && searchError.name === "AbortError")
-      ) {
-        setError(
-          searchError instanceof Error
-            ? searchError.message
-            : "Não foi possível consultar os prestadores.",
-        );
-      }
-    } finally {
-      if (activeSearch.current === controller) {
-        activeSearch.current = null;
-        setLoading(false);
-      }
-    }
+  function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSelectedId(undefined);
+    setRequest({
+      ...parseRegion(region),
+      ...(trip ? tripFilters : service && { modalidade: service }),
+      ...(providerType && { tipo: providerType }),
+    });
   }
 
+  function clearFilters() {
+    setRegion("");
+    setProviderType("");
+    setSortByName(false);
+    setSelectedId(undefined);
+    setRequest(tripFilters);
+  }
+
+  const loading = Boolean(request && result?.request !== request);
+  const error = loading ? undefined : result?.error;
+  const matches = loading ? [] : result?.providers ?? [];
+  const providers = sortByName
+    ? [...matches].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+    : matches;
+  const selected = providers.find(provider => provider.id === selectedId);
   const resultCount = providers.length;
+  const FilterPanel = trip ? "details" : "section";
 
   return (
     <div className="min-h-screen bg-[#f5f7f8] text-[#1d2d32] [font-family:Inter,'Noto_Sans',Arial,sans-serif]">
@@ -200,34 +224,30 @@ export default function ClientePrestadores() {
               to="/"
               className="flex h-full flex-col items-center justify-center"
             >
-              <span className="flex h-[77px] items-center text-[14px] font-semibold leading-[1.45] text-[#637479]">
+              <span className="flex h-[77px] items-center text-[14px] font-medium leading-[1.45] text-[#637479]">
                 Solicitar frete
               </span>
-              <span className="h-[3px] w-full bg-[#17695b]" />
+              <span className="h-[3px] w-full bg-transparent" />
             </Link>
             <Link
               to="/cliente/prestadores"
               aria-current="page"
               className="flex h-full flex-col items-center justify-center"
             >
-              <span className="flex h-[77px] items-center text-[14px] font-medium leading-[1.45] text-[#17695b]">
+              <span className="flex h-[77px] items-center text-[14px] font-semibold leading-[1.45] text-[#17695b]">
                 Prestadores
               </span>
-              <span className="h-[3px] w-full bg-transparent" />
+              <span className="h-[3px] w-full bg-[#17695b]" />
             </Link>
-            <a
-              href="#meus-fretes"
-              onClick={(event) => {
-                event.preventDefault();
-                setFeedback("A área de fretes ainda não está conectada.");
-              }}
+            <Link
+              to="/cliente/historico"
               className="flex h-full flex-col items-center justify-center"
             >
               <span className="flex h-[77px] items-center text-[14px] font-medium leading-[1.45] text-[#637479]">
                 Meus fretes
               </span>
               <span className="h-[3px] w-full bg-transparent" />
-            </a>
+            </Link>
           </nav>
 
           <div className="flex shrink-0 items-center gap-5 max-sm:gap-3">
@@ -280,36 +300,56 @@ export default function ClientePrestadores() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-12 pb-[79px] pt-9 max-lg:px-8 max-md:gap-6 max-md:px-4 max-md:pb-12 max-md:pt-6">
+      <main className={`mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-12 pb-[79px] pt-9 max-lg:px-8 max-md:px-4 max-md:pb-12 max-md:pt-6 ${trip ? "lg:grid lg:grid-cols-[minmax(240px,1fr)_minmax(0,3fr)] lg:items-start" : ""}`}>
+        {trip && (
+          <section aria-labelledby="trip-summary" className="grid gap-3 rounded-[14px] border border-[#dfe7e8] bg-white p-6 wrap-anywhere lg:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 id="trip-summary" className="text-lg font-semibold">Seu roteiro</h2>
+              <Link className="font-semibold text-[#17695b] underline" to="/cliente/planejar-viagem" state={state}>Editar itinerário</Link>
+            </div>
+            <p>{trip.returnAt ? "Ida e volta" : "Ida"} · {trip.passengers} {trip.passengers === 1 ? "passageiro" : "passageiros"}</p>
+            <p>Partida em {dateTimeFormat.format(new Date(trip.departure))}</p>
+            {trip.returnAt && <p>Retorno em {dateTimeFormat.format(new Date(trip.returnAt))}</p>}
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>Embarque – {trip.origin}</li>
+              {trip.stops.map((stop, index) => <li key={index}>Parada {index + 1} – {stop}</li>)}
+              <li>Destino – {trip.destination}</li>
+            </ol>
+            {trip.offer && <div>
+              <h3 className="font-semibold">Oferta original</h3>
+              <p>{currencyFormat.format(Number(trip.offer.amount))}</p>
+              <p className="whitespace-pre-wrap">{trip.offer.terms}</p>
+            </div>}
+          </section>
+        )}
         <section
           aria-label="Consultar prestadores"
-          className="flex flex-col gap-6"
+          className={`flex min-w-0 flex-col gap-6 ${trip ? "lg:row-span-3 lg:row-start-2 lg:col-start-1" : ""}`}
         >
-          {/* <p className="h-4 w-full text-[11px] font-bold leading-4 text-[#17695b]">
-            RF005&nbsp; / &nbsp;MUV
-          </p> */}
           <div className="flex flex-col gap-6">
             <h1 className="text-[30px] font-bold leading-[1.45] text-[#1d2d32]">
               Encontre o prestador certo
             </h1>
             <p className="text-[14px] font-normal leading-5 text-[#637479]">
-              Pesquise por modalidade e região atendida antes de direcionar sua
-              solicitação.
+              {trip
+                ? "A disponibilidade para o período precisa ser confirmada pelo prestador."
+                : "Pesquise por modalidade e região atendida antes de direcionar sua solicitação."}
             </p>
           </div>
 
-          <section className="flex w-full flex-col gap-4 rounded-[14px] border border-[#dfe7e8] bg-white p-6">
-            <h2 className="text-[19px] font-semibold leading-[1.45] text-[#1d2d32]">
-              Como podemos ajudar?
-            </h2>
+          <FilterPanel open={trip ? true : undefined} className="w-full space-y-4 rounded-[14px] border border-[#dfe7e8] bg-white p-6">
+            {trip
+              ? <summary className="cursor-pointer text-[19px] font-semibold">Filtros</summary>
+              : <h2 className="text-[19px] font-semibold leading-[1.45] text-[#1d2d32]">Como podemos ajudar?</h2>}
             <form
               onSubmit={handleSearch}
-              className="grid w-full grid-cols-[repeat(3,minmax(0,1fr))_99px] items-end gap-5 max-md:grid-cols-1"
+              className={`grid w-full items-end gap-5 ${trip ? "md:max-lg:grid-cols-[repeat(3,minmax(0,1fr))_99px]" : "md:grid-cols-[repeat(3,minmax(0,1fr))_99px]"}`}
             >
               <label className="flex min-w-0 flex-col gap-2 text-[12px] font-semibold leading-[17px] text-[#637479]" htmlFor="service">
                 Modalidade
                 <select
                   id="service"
+                  disabled={Boolean(trip)}
                   value={service}
                   onChange={(event) => {
                     const value = event.target.value;
@@ -326,7 +366,7 @@ export default function ClientePrestadores() {
               </label>
               <SelectField
                 id="region"
-                label="Região de atendimento"
+                label={trip ? "Localização do prestador" : "Região de atendimento"}
                 value={region}
                 onChange={setRegion}
                 placeholder="Informe a região"
@@ -356,17 +396,29 @@ export default function ClientePrestadores() {
               </label>
               <button
                 type="submit"
-                className="h-[46px] rounded-[8px] bg-[#17695b] px-[18px] text-[13px] font-semibold text-white transition-colors hover:bg-[#12584d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b] max-md:w-full"
+                className="h-[46px] rounded-[8px] bg-[#17695b] px-[18px] text-[13px] font-semibold text-white cursor-pointer transition-colors hover:bg-[#12584d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b] max-md:w-full"
               >
                 Pesquisar
               </button>
             </form>
-          </section>
+            {trip && <div className="flex flex-wrap items-center justify-between gap-3">
+              <button type="button" onClick={clearFilters} className="cursor-pointer text-sm font-semibold text-[#17695b] underline transition-colors hover:text-[#0e4940] hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]">Limpar filtros</button>
+              <label className="flex flex-wrap items-center gap-2 text-sm">
+                Ordenar por
+                <select value={sortByName ? "nome" : ""} onChange={event => setSortByName(event.target.value === "nome")}
+                  className="rounded-lg border border-[#dfe7e8] bg-white px-2 py-1">
+                  <option value="">Ordem da consulta</option>
+                  <option value="nome">Nome do prestador</option>
+                </select>
+              </label>
+            </div>}
+          </FilterPanel>
         </section>
 
-        <h2 className="text-[17px] font-semibold leading-[1.45] text-[#1d2d32]">
+        <h2 aria-live={trip ? "polite" : undefined} className={`text-[17px] font-semibold leading-[1.45] text-[#1d2d32] ${trip ? "lg:col-start-2" : ""}`}>
           {loading
             ? "Consultando prestadores..."
+            : trip ? `${resultCount} ${resultCount === 1 ? "prestador compatível" : "prestadores compatíveis"}`
             : resultCount > 0
             ? `${resultCount} ${
                 resultCount === 1
@@ -388,7 +440,7 @@ export default function ClientePrestadores() {
           </section>
         ) : resultCount > 0 ? (
           <section
-            aria-label="Prestadores que atendem sua rota"
+            aria-label={trip ? "Prestadores compatíveis" : "Prestadores que atendem sua rota"}
             className="grid w-full grid-cols-2 items-start gap-5 max-md:grid-cols-1"
           >
             {providers.map((provider) => (
@@ -396,6 +448,8 @@ export default function ClientePrestadores() {
                 key={provider.id}
                 provider={provider}
                 onAction={setFeedback}
+                onSelect={trip ? () => setSelectedId(provider.id) : undefined}
+                selected={provider.id === selectedId}
               />
             ))}
           </section>
@@ -405,14 +459,25 @@ export default function ClientePrestadores() {
             className="rounded-[14px] border border-[#dfe7e8] bg-white p-6"
           >
             <p className="text-[14px] leading-[1.45] text-[#637479]">
-              {hasSearched
+              {request
                 ? "Nenhum prestador encontrado para os filtros informados."
                 : "Informe os filtros desejados e pesquise para consultar os prestadores."}
             </p>
           </section>
         )}
 
-        <section className="flex min-h-[172px] w-full flex-col items-start gap-4 rounded-[14px] border border-[#dfe7e8] bg-white p-6">
+        {trip && <section aria-labelledby="request-review" className="rounded-[14px] border border-[#dfe7e8] bg-white p-6">
+          <h2 id="request-review" className="text-lg font-semibold">Revisar solicitação</h2>
+          <p role="status" className="mt-2">{selected ? `Destinatário: ${selected.nome}` : "Selecione um prestador para revisar o destinatário."}</p>
+          <p id="request-blocked" className="mt-2 text-sm text-[#637479]">
+            O envio está indisponível enquanto a integração para gravar a solicitação e o roteiro completo estiver pendente.
+          </p>
+          <button type="button" disabled aria-describedby="request-blocked"
+            className="mt-3 rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
+            Enviar solicitação direcionada
+          </button>
+        </section>}
+        {!trip && <section className="flex min-h-[172px] w-full flex-col items-start gap-4 rounded-[14px] border border-[#dfe7e8] bg-white p-6">
           <h2 className="text-[19px] font-semibold leading-[1.45] text-[#1d2d32]">
             Prefere receber opções?
           </h2>
@@ -425,11 +490,11 @@ export default function ClientePrestadores() {
             onClick={() =>
               setFeedback("O envio de solicitações ainda não está conectado.")
             }
-            className="h-[42px] rounded-[8px] border border-[#dfe7e8] bg-white px-[18px] text-[13px] font-semibold text-[#17695b] transition-colors hover:bg-[#f5f7f8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]"
+            className="h-[42px] rounded-[8px] border border-[#dfe7e8] bg-white px-[18px] text-[13px] font-semibold text-[#17695b] cursor-pointer transition-colors hover:bg-[#f5f7f8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17695b]"
           >
             Criar solicitação aberta
           </button>
-        </section>
+        </section>}
       </main>
 
       {feedback && (

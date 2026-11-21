@@ -8,11 +8,16 @@ export type CancellationDetails = {
     origem: string;
     destino: string;
     dataHoraPretendida: string;
+    contratadoEm: string;
   };
   autorNome: string;
   autorPapel: string;
   registro: { autor: string; dataHora: string; justificativa: string } | null;
 };
+
+export function canCancelFreight(status: string) {
+  return status === "AGUARDANDO_DESIGNACAO" || status === "PRONTO_INICIO";
+}
 
 export class CancellationError extends Error {
   status: number;

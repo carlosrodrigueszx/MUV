@@ -18,5 +18,5 @@ INSERT INTO solicitacao_frete(id,modalidade,data_hora_pretendida,status,id_passa
 INSERT INTO proposta(id,status,valor,condicoes,id_solicitacao,id_prestador)
  VALUES (11009,'ACEITA',350.00,'Condições originais',11008,11002);
 INSERT INTO frete(id,valor_atual,condicoes_atuais,status,solicitacao_id,proposta_aceita_id,
- prestador_responsavel_id,motorista_atual_id,veiculo_atual_id)
- VALUES (11010,350.00,'Condições originais','PRONTO_INICIO',11008,11009,11002,11004,11005);
+ prestador_responsavel_id,motorista_atual_id,veiculo_atual_id,criado_em)
+ VALUES (11010,350.00,'Condições originais','PRONTO_INICIO',11008,11009,11002,11004,11005,'2026-10-21 14:00:00');

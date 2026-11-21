@@ -47,7 +47,9 @@ class FreightCancellationNavigationTest {
         try {
             var wait = new WebDriverWait(driver, Duration.ofSeconds(15));
             driver.manage().window().setSize(new Dimension(1351, 1040));
-            openFreight(driver, wait);
+            driver.get(base + "/cliente/fretes/11010");
+            wait.until(ExpectedConditions.elementToBeClickable(By.linkText("Cancelar frete"))).click();
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("justificativa")));
             assertThat(driver.findElement(By.linkText("Meus fretes")).getDomAttribute("href"))
                     .isEqualTo("/cliente/historico");
             assertThat(driver.findElement(By.cssSelector("[aria-label='Minha conta']")).getDomAttribute("href"))
@@ -95,6 +97,17 @@ class FreightCancellationNavigationTest {
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//h1[.='Frete cancelado']")));
             assertThat(driver.findElements(By.id("justificativa"))).isEmpty();
             screenshot(driver, "rf011-success.png");
+            driver.findElement(By.linkText("Voltar para meus fretes")).click();
+            wait.until(ExpectedConditions.urlContains("frete=11010&periodo=2026-10"));
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("freight-details")));
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath(
+                    "//*[@id='freight-details']//*[normalize-space()='Frete cancelado']")));
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath(
+                    "//main//*[normalize-space()='Cancelado']")));
+            assertThat(driver.findElement(By.id("freight-details")).getText()).contains("O envio foi adiado");
+            driver.get(base + "/cliente/fretes/11010");
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//p[normalize-space()='Cancelado']")));
+            assertThat(driver.findElements(By.linkText("Cancelar frete"))).isEmpty();
             assertThat(db.sql("SELECT usuario_destino_id FROM notificacao WHERE frete_id = 11010").query(Long.class).single()).isEqualTo(11002L);
             assertThat(db.sql("SELECT usuario_autor_id FROM historico_execucao_frete WHERE frete_id = 11010").query(Long.class).single()).isEqualTo(11001L);
         } finally { driver.quit(); }

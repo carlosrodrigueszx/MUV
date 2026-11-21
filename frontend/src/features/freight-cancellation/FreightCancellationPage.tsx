@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { FreightCancellationHeader } from "./FreightCancellationHeader";
-import { cancelFreight, CancellationError, getCancellation, type CancellationDetails } from "./api";
+import { cancelFreight, canCancelFreight, CancellationError, getCancellation, type CancellationDetails } from "./api";
 
 const container = "mx-auto w-full max-w-[1440px] px-[clamp(16px,3.333vw,48px)]";
 const card = "min-w-0 rounded-[14px] border border-[#dce4e5] bg-white p-4 sm:p-[22px]";
@@ -11,7 +11,6 @@ const field = "mt-1.5 min-h-11 rounded-lg border border-[#dce4e5] bg-[#f4f6f7] p
 const action = "inline-flex min-h-[38px] items-center justify-center rounded-lg border px-4 py-2 text-center text-xs font-semibold leading-5";
 const secondary = `${action} border-[#dce4e5] bg-white text-[#17695b] hover:bg-[#f4f6f7]`;
 const banner = "mt-[22px] rounded-[14px] bg-[#fff3df] p-[15px] text-[13px] leading-5";
-const eligible = (status: string) => ["AGUARDANDO_DESIGNACAO", "PRONTO_INICIO"].includes(status);
 
 function CancellationForm({ id }: { id: string }) {
   const [data, setData] = useState<CancellationDetails | null>(null);
@@ -51,7 +50,7 @@ function CancellationForm({ id }: { id: string }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (sending.current || !confirmed || !reason.trim() || !data || !eligible(data.frete.status)) return;
+    if (sending.current || !confirmed || !reason.trim() || !data || !canCancelFreight(data.frete.status)) return;
     sending.current = true;
     setSubmitting(true);
     setError("");
@@ -73,8 +72,11 @@ function CancellationForm({ id }: { id: string }) {
   }
 
   const freight = data?.frete;
-  const canCancel = freight && eligible(freight.status) && !success && !sessionExpired;
+  const canCancel = freight && canCancelFreight(freight.status) && !success && !sessionExpired;
   const back = data?.autorPapel === "Prestador" ? "/prestador/historico" : "/cliente/historico";
+  const freightHistory = freight
+    ? `${back}?frete=${freight.id}&periodo=${freight.contratadoEm.slice(0, 7)}#freight-details`
+    : back;
 
   return <>
     <FreightCancellationHeader containerClass={container} historyRoute={back} name={sessionExpired ? undefined : data?.autorNome} />
@@ -86,7 +88,7 @@ function CancellationForm({ id }: { id: string }) {
       {success && <p role="status" className="mt-6 rounded-xl bg-[#E5F2EF] p-4 text-[#176A5B]">Frete cancelado com sucesso. A outra parte foi notificada.</p>}
       {refreshWarning && <div role="alert" className="mt-4 rounded-xl bg-amber-50 p-4 text-amber-900">{refreshWarning} <button type="button" className="underline" onClick={() => void refresh()}>Recarregar dados</button></div>}
       {data && freight && <>
-        <p className="mt-4 text-sm leading-5 text-[#56696e] [overflow-wrap:anywhere] lg:mt-[22px]">FR-{freight.id} · {freight.status === "CANCELADO" ? "Cancelado" : eligible(freight.status) ? "Contratado" : "Execução iniciada"} · {freight.modalidade === "ENCOMENDA" ? "Encomendas" : "Pessoas"} · {freight.origem} → {freight.destino} · {new Date(freight.dataHoraPretendida).toLocaleString("pt-BR", { dateStyle: "medium", timeStyle: "short" })}</p>
+        <p className="mt-4 text-sm leading-5 text-[#56696e] [overflow-wrap:anywhere] lg:mt-[22px]">FR-{freight.id} · {freight.status === "CANCELADO" ? "Cancelado" : canCancelFreight(freight.status) ? "Contratado" : "Execução iniciada"} · {freight.modalidade === "ENCOMENDA" ? "Encomendas" : "Pessoas"} · {freight.origem} → {freight.destino} · {new Date(freight.dataHoraPretendida).toLocaleString("pt-BR", { dateStyle: "medium", timeStyle: "short" })}</p>
         {canCancel ? <div className={banner}>
           <p className="text-sm font-semibold text-[#875b16]">O serviço ainda não começou</p>
           <p className="mt-0.5">O cliente ou o prestador responsável pode cancelar antes do início, com justificativa obrigatória.</p>
@@ -110,7 +112,7 @@ function CancellationForm({ id }: { id: string }) {
               </div>
             </form> : <>
               {data.registro && <p className="mt-3 whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{data.registro.justificativa}</p>}
-              <Link to={back} className={`${secondary} mt-5`}>Voltar para meus fretes</Link>
+              <Link to={freightHistory} className={`${secondary} mt-5`}>Voltar para meus fretes</Link>
             </>}
           </section>
           <section className={card}>
