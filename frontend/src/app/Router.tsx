@@ -20,6 +20,7 @@ import {
   DesignarRecursosPage,
   SubstituirRecursosPage,
 } from "../features/designacao/DesignacaoPages";
+import { AchadosPerdidosPage, RegistrarAchadoPage } from "../features/achados-perdidos/AchadosPerdidosPages";
 
 export const Router: React.FC = () => {
   return (
@@ -38,6 +39,10 @@ export const Router: React.FC = () => {
         <Route path="/prestador/veiculos" element={<Vehicles />} />
         <Route path="/prestador/motoristas" element={<DriverLinking />} />
         <Route path="/prestador/historico" element={<FreightHistory />} />
+        <Route path="/prestador/achados-perdidos" element={<AchadosPerdidosPage />} />
+        <Route path="/prestador/achados-perdidos/novo" element={<RegistrarAchadoPage />} />
+        <Route path="/motorista/achados-perdidos" element={<AchadosPerdidosPage />} />
+        <Route path="/motorista/achados-perdidos/novo" element={<RegistrarAchadoPage />} />
         <Route path="/prestador/fretes/:id/designacao" element={<DesignarRecursosPage />} />
         <Route path="/prestador/fretes/:id/substituicao" element={<SubstituirRecursosPage />} />
         <Route path="/cliente/solicitacoes/:id/propostas" element={<CompararPropostas />} />

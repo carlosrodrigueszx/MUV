@@ -21,6 +21,8 @@ interface ProviderLayoutProps {
   navItems?: ProviderNavItem[];
   supportHref?: string;
   passengerPortalHref?: string;
+  portalLabel?: string;
+  areaLabel?: string;
 }
 
 export function ProviderLayout({
@@ -38,6 +40,8 @@ export function ProviderLayout({
   navItems = providerNavItems,
   supportHref = "#",
   passengerPortalHref = "#",
+  portalLabel = "PORTAL DO PRESTADOR",
+  areaLabel = "Área do prestador",
 }: ProviderLayoutProps) {
   return (
     <div
@@ -56,10 +60,10 @@ export function ProviderLayout({
         </Link>
 
         <span className="hidden w-fit rounded-full bg-[#eff3f4] px-2.5 py-[5px] text-[11px] leading-4 font-semibold text-[#637479] md:inline-flex">
-          PORTAL DO PRESTADOR
+          {portalLabel}
         </span>
 
-        <nav aria-label="Portal do prestador" className="flex gap-[7px] overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
+        <nav aria-label={portalLabel} className="flex gap-[7px] overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
           {navItems.map(({ key, label, to, icon: Icon }) => {
             const active = key === activeNavKey;
             const badge = navBadges[key];
@@ -128,7 +132,7 @@ export function ProviderLayout({
         {/* Barra superior */}
         <header className="flex min-h-20 shrink-0 flex-wrap items-center justify-between gap-3 bg-white px-4 py-4 sm:px-6 md:h-20 md:px-9 md:py-0">
           <nav aria-label="Navegação estrutural" className="flex items-center gap-2.5 text-[13px] leading-[19px]">
-            <span className="text-[#637479]">Área do prestador</span>
+            <span className="text-[#637479]">{areaLabel}</span>
             <LuChevronRight size={14} className="text-[#637479]" />
             <span className="font-semibold text-[#1d2d32]">{pageTitle}</span>
           </nav>
