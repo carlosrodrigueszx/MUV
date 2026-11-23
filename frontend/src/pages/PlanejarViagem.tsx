@@ -77,9 +77,9 @@ export default function PlanejarViagem() {
         <div className="col-start-2 row-start-1 flex items-center justify-self-end gap-3 sm:gap-5 lg:col-start-3">
           <Link to="/cadastro" className="whitespace-nowrap text-xs font-medium text-[#5c717a] transition-colors hover:text-[#005d50]">Seja motorista</Link>
           <span className="h-6 w-px bg-[#dfe6e7]" aria-hidden="true" />
-          <button type="button" aria-label="Notificações" disabled className="grid size-5 place-items-center">
+          <Link to="/cliente/notificacoes" aria-label="Notificações" className="grid size-5 place-items-center">
             <img src={bellIcon} alt="" width={20} height={20} />
-          </button>
+          </Link>
           <Link to="/conta" aria-label="Minha conta" title={session.nome} className="flex items-center gap-3 sm:gap-5">
             <span className="grid size-9 place-items-center rounded-full bg-[#e1f1eb] text-xs font-semibold text-[#005d50] transition-colors hover:bg-[#cce7df]">{initials}</span>
             <img src={chevronDownIcon} alt="" width={16} height={16} />

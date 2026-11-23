@@ -14,6 +14,9 @@ export function AccountNavbar() {
   const historyPath = location.pathname.startsWith("/prestador/")
     ? "/prestador/historico"
     : "/cliente/historico";
+  const notificationsPath = location.pathname.startsWith("/prestador/")
+    ? "/prestador/notificacoes"
+    : "/cliente/notificacoes";
   const accountLinks = [
     { label: "Solicitar frete", to: "/cliente/planejar-viagem" },
     { label: "Prestadores", to: "/cliente/prestadores" },
@@ -51,9 +54,9 @@ export function AccountNavbar() {
             Trocar perfil
           </button>
           <span className="h-6 w-px bg-slate-200" />
-          <button type="button" aria-label="Notificações" className="text-slate-500 hover:text-[#176A5B]">
+          <Link to={notificationsPath} aria-label="Notificações" className="text-slate-500 hover:text-[#176A5B]">
             <LuBell size={19} />
-          </button>
+          </Link>
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E5F2EF] text-xs font-bold text-[#176A5B]">
             AO
           </span>

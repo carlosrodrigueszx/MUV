@@ -20,12 +20,15 @@ import org.springframework.web.server.ResponseStatusException;
 public class DesignacaoService {
     private final DesignacaoRepository repositorio;
     private final CompatibilidadeDesignacaoService compatibilidade;
+    private final NotificacaoInternaService notificacoes;
 
     public DesignacaoService(
             DesignacaoRepository repositorio,
-            CompatibilidadeDesignacaoService compatibilidade) {
+            CompatibilidadeDesignacaoService compatibilidade,
+            NotificacaoInternaService notificacoes) {
         this.repositorio = repositorio;
         this.compatibilidade = compatibilidade;
+        this.notificacoes = notificacoes;
     }
 
     @Transactional(readOnly = true)
@@ -134,6 +137,8 @@ public class DesignacaoService {
                     HttpStatus.CONFLICT,
                     "A designação foi atualizada. Consulte os dados novamente.");
         }
+        notificacoes.notificar(frete.clienteId(), "Designação confirmada",
+                "O motorista e o veículo do frete foram designados.", freteId, null);
         return new DesignacaoConfirmada(
                 freteId,
                 "PRONTO_INICIO",
@@ -197,13 +202,14 @@ public class DesignacaoService {
             long acordoId = repositorio.registrarSolicitacaoAcordo(
                     freteId,
                     prestadorId,
-                    frete.clienteId(),
                     motoristaId,
                     veiculoId,
                     comando.revisao(),
                     comando.novoValor() == null ? frete.valorAtual() : comando.novoValor(),
                     condicoesPropostas,
                     comando.justificativa().trim());
+            notificacoes.notificar(frete.clienteId(), "Nova proposta de alteração do frete",
+                    "O prestador solicitou sua aprovação para alterar o frete.", freteId, null);
             var atual = repositorio.buscarVeiculoParaValidacao(frete.veiculoAtualId()).orElseThrow();
             return new SubstituicaoConfirmada(
                     freteId,
@@ -219,7 +225,6 @@ public class DesignacaoService {
         long novaRevisao = repositorio.registrarSubstituicao(
                 freteId,
                 prestadorId,
-                frete.clienteId(),
                 motoristaId,
                 veiculoId,
                 comando.revisao(),
@@ -227,6 +232,8 @@ public class DesignacaoService {
         if (novaRevisao < 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT);
         }
+        notificacoes.notificar(frete.clienteId(), "Recursos do frete atualizados",
+                "O prestador substituiu o motorista ou o veículo do seu frete.", freteId, null);
         var veiculo = repositorio.buscarVeiculoParaValidacao(veiculoId).orElseThrow();
         return new SubstituicaoConfirmada(
                 freteId,
@@ -251,6 +258,8 @@ public class DesignacaoService {
         }
         if (!aceitar) {
             repositorio.rejeitarAcordo(acordoId, freteId, acordo.prestadorId());
+            notificacoes.notificar(acordo.prestadorId(), "Alteração rejeitada",
+                    "O cliente rejeitou a alteração proposta para o frete.", freteId, null);
             return new AcordoRespondido(acordoId, "REJEITADA", true, acordo.revisaoFrete());
         }
         if (acordo.revisaoOrigem() != acordo.revisaoFrete()) {
@@ -281,6 +290,8 @@ public class DesignacaoService {
         if (revisao < 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT);
         }
+        notificacoes.notificar(acordo.prestadorId(), "Alteração aceita",
+                "O cliente aceitou a alteração proposta para o frete.", freteId, null);
         return new AcordoRespondido(acordoId, "ACEITA", true, revisao);
     }
 

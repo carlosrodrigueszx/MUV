@@ -79,12 +79,4 @@ public class FreightCancellationRepository {
                 .param("cancelledAtUtc", cancelledAtUtc).update();
     }
 
-    public void notifyCancellation(long id, long recipient, LocalDateTime cancelledAtUtc) {
-        db.sql("""
-                INSERT INTO notificacao (titulo, mensagem, usuario_destino_id, frete_id, criado_em)
-                VALUES ('Frete cancelado', :message, :recipient, :id, :cancelledAtUtc)
-                """).param("id", id).param("recipient", recipient)
-                .param("message", "O frete FR-" + id + " foi cancelado. Consulte o motivo no registro do cancelamento.")
-                .param("cancelledAtUtc", cancelledAtUtc).update();
-    }
 }

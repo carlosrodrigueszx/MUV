@@ -14,9 +14,11 @@ import java.util.Objects;
 @Service
 public class PropostaService {
     private final PropostaRepository propostas;
+    private final NotificacaoInternaService notificacoes;
 
-    public PropostaService(PropostaRepository propostas) {
+    public PropostaService(PropostaRepository propostas, NotificacaoInternaService notificacoes) {
         this.propostas = propostas;
+        this.notificacoes = notificacoes;
     }
 
     public AvaliacaoSolicitacao avaliar(long solicitacao, long prestador) {
@@ -59,7 +61,8 @@ public class PropostaService {
             throw erro(HttpStatus.CONFLICT, "A oferta do cliente mudou. Abra novamente a avaliação.");
         }
         long id = propostas.registrar(solicitacao, prestador, valor, condicoes, resposta.chaveEnvio());
-        propostas.notificar(contexto.clienteId(), solicitacao);
+        notificacoes.notificar(contexto.clienteId(), "Nova proposta",
+                "Você recebeu uma proposta para sua solicitação.", null, solicitacao);
         return id;
     }
 

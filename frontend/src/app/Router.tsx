@@ -22,6 +22,7 @@ import {
   SubstituirRecursosPage,
 } from "../features/designacao/DesignacaoPages";
 import { AchadosPerdidosPage, RegistrarAchadoPage } from "../features/achados-perdidos/AchadosPerdidosPages";
+import NotificacoesPage from "../features/notificacoes/NotificacoesPage";
 
 export const Router: React.FC = () => {
   return (
@@ -50,6 +51,8 @@ export const Router: React.FC = () => {
         <Route path="/cliente/solicitacoes/:id/propostas" element={<CompararPropostas />} />
         <Route path="/cliente/fretes/:id" element={<FreteContratado />} />
         <Route path="/cliente/historico" element={<FreightHistory />} />
+        <Route path="/cliente/notificacoes" element={<NotificacoesPage />} />
+        <Route path="/prestador/notificacoes" element={<NotificacoesPage />} />
       </Routes>
     </BrowserRouter>
   );

@@ -74,14 +74,15 @@ public class ContratacaoService {
 
 @org.springframework.stereotype.Component
 class NotificacaoContratacao {
-    private final ContratacaoRepository repositorio;
+    private final NotificacaoInternaService notificacoes;
 
-    NotificacaoContratacao(ContratacaoRepository repositorio) {
-        this.repositorio = repositorio;
+    NotificacaoContratacao(NotificacaoInternaService notificacoes) {
+        this.notificacoes = notificacoes;
     }
 
     @EventListener
     void registrar(ContratacaoService.ContratacaoConfirmada evento) {
-        repositorio.notificar(evento.prestador(), evento.solicitacao(), evento.frete());
+        notificacoes.notificar(evento.prestador(), "Contratação confirmada",
+                "O cliente aceitou sua proposta de frete.", evento.frete(), evento.solicitacao());
     }
 }

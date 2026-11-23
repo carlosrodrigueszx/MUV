@@ -178,7 +178,6 @@ public class DesignacaoRepository {
     public long registrarSubstituicao(
             long freteId,
             long prestadorId,
-            long clienteId,
             long motoristaId,
             long veiculoId,
             long revisaoEsperada,
@@ -215,22 +214,12 @@ public class DesignacaoRepository {
                 .param("motoristaId", motoristaId)
                 .param("veiculoId", veiculoId)
                 .update();
-        db.sql("""
-                INSERT INTO notificacao (titulo, mensagem, usuario_destino_id, frete_id)
-                VALUES ('Recursos do frete atualizados',
-                        'O prestador substituiu o motorista ou o veículo do seu frete.',
-                        :clienteId, :freteId)
-                """)
-                .param("clienteId", clienteId)
-                .param("freteId", freteId)
-                .update();
         return revisaoEsperada + 1;
     }
 
     public long registrarSolicitacaoAcordo(
             long freteId,
             long prestadorId,
-            long clienteId,
             long motoristaId,
             long veiculoId,
             long revisaoOrigem,
@@ -256,15 +245,6 @@ public class DesignacaoRepository {
                 .param("revisaoOrigem", revisaoOrigem)
                 .query(Long.class)
                 .single();
-        db.sql("""
-                INSERT INTO notificacao (titulo, mensagem, usuario_destino_id, frete_id)
-                VALUES ('Nova proposta de alteração do frete',
-                        'O prestador solicitou sua aprovação para alterar o frete.',
-                        :clienteId, :freteId)
-                """)
-                .param("clienteId", clienteId)
-                .param("freteId", freteId)
-                .update();
         return id;
     }
 
@@ -316,7 +296,6 @@ public class DesignacaoRepository {
                 .param("acordoId", acordoId)
                 .param("freteId", freteId)
                 .update();
-        notificarRespostaAcordo(prestadorId, freteId, false);
     }
 
     public long aplicarAcordo(long freteId, AcordoBloqueado acordo) {
@@ -364,22 +343,7 @@ public class DesignacaoRepository {
                 .param("veiculoId", acordo.novoVeiculoId())
                 .param("acordoId", acordo.id())
                 .update();
-        notificarRespostaAcordo(acordo.prestadorId(), freteId, true);
         return acordo.revisaoOrigem() + 1;
-    }
-
-    private void notificarRespostaAcordo(long prestadorId, long freteId, boolean aceita) {
-        db.sql("""
-                INSERT INTO notificacao (titulo, mensagem, usuario_destino_id, frete_id)
-                VALUES (:titulo, :mensagem, :prestadorId, :freteId)
-                """)
-                .param("titulo", aceita ? "Alteração aceita" : "Alteração rejeitada")
-                .param("mensagem", aceita
-                        ? "O cliente aceitou a alteração proposta para o frete."
-                        : "O cliente rejeitou a alteração proposta para o frete.")
-                .param("prestadorId", prestadorId)
-                .param("freteId", freteId)
-                .update();
     }
 
     private Optional<FreteRow> buscarFrete(long freteId, long prestadorId) {

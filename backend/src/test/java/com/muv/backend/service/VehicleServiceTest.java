@@ -82,6 +82,20 @@ class VehicleServiceTest {
                 .hasMessageContaining("Veículo não encontrado");
     }
 
+    @Test
+    void preservesBothModalityWhenEditingCargoDetails() {
+        VehicleRequest request = request("carga", "ABC1D23", "3500.50");
+        when(vehicles.findModalityByIdAndProvider(10L, 21L)).thenReturn(Optional.of("AMBOS"));
+        when(vehicles.update(eq(10L), eq(21L), eq(request), eq("ABC1D23"), eq("AMBOS"), eq(0),
+                eq(new BigDecimal("3500.50")))).thenReturn(true);
+        when(vehicles.findByIdAndProvider(10L, 21L)).thenReturn(Optional.of(vehicle(10L, "ABC1D23")));
+
+        service.update("prestador@example.test", 10L, request);
+
+        verify(vehicles).update(eq(10L), eq(21L), eq(request), eq("ABC1D23"), eq("AMBOS"), eq(0),
+                eq(new BigDecimal("3500.50")));
+    }
+
     private static VehicleRequest request(String type, String plate, String capacity) {
         return new VehicleRequest("Marca", "Modelo", 2024, plate, "Branco", type,
                 new BigDecimal(capacity), "Descrição");

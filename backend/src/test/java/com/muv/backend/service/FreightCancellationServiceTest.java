@@ -5,6 +5,7 @@ import com.muv.backend.repository.FreightCancellationRepository.Freight;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -15,7 +16,8 @@ class FreightCancellationServiceTest {
     @Test
     void clienteCancelaFreteAntesDoInicioENotificaSomenteOPrestador() {
         var repository = mock(FreightCancellationRepository.class);
-        var service = new FreightCancellationService(repository);
+        var publisher = mock(ApplicationEventPublisher.class);
+        var service = new FreightCancellationService(repository, new NotificacaoInternaService(publisher));
 
         long freteId = 42L;
         long clienteId = 7L;
@@ -34,7 +36,10 @@ class FreightCancellationServiceTest {
         ordem.verify(repository).findForUpdate(freteId);
         ordem.verify(repository).markCancelled(freteId);
         ordem.verify(repository).addCancellationEvent(freteId, clienteId, justificativa, horarioUtc);
-        ordem.verify(repository).notifyCancellation(freteId, prestadorId, horarioUtc);
         ordem.verifyNoMoreInteractions();
+        org.mockito.Mockito.verify(publisher).publishEvent(new NotificacaoInternaSolicitada(
+                prestadorId, "Frete cancelado",
+                "O frete FR-42 foi cancelado. Consulte o motivo no registro do cancelamento.",
+                freteId, null, horarioUtc));
     }
 }

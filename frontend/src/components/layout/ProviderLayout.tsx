@@ -15,7 +15,6 @@ interface ProviderLayoutProps {
   avatarUrl?: string | null;
   isOnline?: boolean | null;
   onOnlineChange?: (online: boolean) => void;
-  onNotificationsClick?: () => void;
   /** Contadores por `key` do item de navegação (ex.: { requests: 3 }). */
   navBadges?: Record<string, number>;
   navItems?: ProviderNavItem[];
@@ -35,7 +34,6 @@ export function ProviderLayout({
   avatarUrl,
   isOnline = false,
   onOnlineChange,
-  onNotificationsClick,
   navBadges = {},
   navItems = providerNavItems,
   supportHref = "#",
@@ -161,14 +159,13 @@ export function ProviderLayout({
               </span>
             </button>}
             <span className="h-[22px] w-px bg-[#dfe6e7]" />
-            <button
-              type="button"
+            <Link
+              to="/prestador/notificacoes"
               aria-label="Notificações"
-              onClick={onNotificationsClick}
               className="text-[#1d2d32]"
             >
               <LuBell size={20} />
-            </button>
+            </Link>
             <Avatar src={avatarUrl} alt="" size={32} />
           </div>
         </header>

@@ -261,16 +261,13 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
               Trocar perfil
             </button>
             <span className="h-6 w-px bg-[#dfe6e7] max-sm:hidden" />
-            <button
-              type="button"
+            <Link
+              to="/cliente/notificacoes"
               aria-label="Notificações"
-              onClick={() =>
-                setFeedback("As notificações ainda não estão conectadas.")
-              }
               className="flex size-5 items-center justify-center"
             >
               <img src={bellIcon} alt="" width={20} height={20} />
-            </button>
+            </Link>
             <button
               type="button"
               aria-label="Perfil de AO"

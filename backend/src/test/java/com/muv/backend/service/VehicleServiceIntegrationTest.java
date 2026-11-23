@@ -70,6 +70,28 @@ class VehicleServiceIntegrationTest {
     }
 
     @Test
+    void editingLegacyBothModalityPreservesPassengerCapacityAndModality() {
+        Long providerId = jdbc.queryForObject("SELECT id FROM usuario WHERE email = ?", Long.class, email);
+        Long vehicleId = jdbc.queryForObject("""
+                INSERT INTO veiculo
+                    (modelo, ano, cor, placa, capacidade_passageiros, capacidade_carga_kg,
+                     marca, modalidade, ativo, id_prestador, descricao)
+                VALUES ('Modelo', 2024, 'Branco', 'JKL0M12', 20, 1200.50,
+                        'Marca', 'AMBOS', TRUE, ?, 'Original')
+                RETURNING id
+                """, Long.class, providerId);
+
+        service.update(email, vehicleId, request("carga", "JKL0M12", "3500.50", "Atualizado"));
+
+        assertThat(jdbc.queryForObject("SELECT modalidade FROM veiculo WHERE id = ?", String.class, vehicleId))
+                .isEqualTo("AMBOS");
+        assertThat(jdbc.queryForObject("SELECT capacidade_passageiros FROM veiculo WHERE id = ?",
+                Integer.class, vehicleId)).isEqualTo(20);
+        assertThat(jdbc.queryForObject("SELECT capacidade_carga_kg FROM veiculo WHERE id = ?",
+                BigDecimal.class, vehicleId)).isEqualByComparingTo("3500.50");
+    }
+
+    @Test
     void vehicleIsInvisibleToAnotherProvider() {
         VehicleResponse saved = service.create(email,
                 request("passageiros", "GHI7J89", "12", "Veículo privado"));
