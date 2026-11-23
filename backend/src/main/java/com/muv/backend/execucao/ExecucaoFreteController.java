@@ -36,6 +36,22 @@ public class ExecucaoFreteController {
                 .body(execucao.consultar(freteId, conta.id(), conta.nome()));
     }
 
+    @PostMapping("/inicio")
+    public ResponseEntity<TransicaoFreteService.Resultado> iniciar(
+            @PathVariable long freteId, Principal principal, @RequestBody TransicaoFreteService.Comando comando) {
+        var conta = contaAutenticada(principal);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(transicao.confirmar(freteId, conta.id(), RegrasExecucao.Acao.INICIO, comando));
+    }
+
+    @PostMapping("/ocorrencias")
+    public ResponseEntity<TransicaoFreteService.Resultado> registrarOcorrencia(
+            @PathVariable long freteId, Principal principal, @RequestBody TransicaoFreteService.Comando comando) {
+        var conta = contaAutenticada(principal);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(transicao.confirmar(freteId, conta.id(), RegrasExecucao.Acao.OCORRENCIA, comando));
+    }
+
     @PostMapping("/interrupcoes")
     public ResponseEntity<TransicaoFreteService.Resultado> interromper(
             @PathVariable long freteId, Principal principal, @RequestBody TransicaoFreteService.Comando comando) {

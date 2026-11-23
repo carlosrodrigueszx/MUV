@@ -128,7 +128,7 @@ O teste Selenium usa o proxy Vite para localhost:8080 por padrão. Caso a porta 
 
 Arquivos desta etapa: `V13__rf010_recibo_encerramento.sql`; `TransicaoFreteService.java`, `ExecucaoFreteController.java`, `ExecucaoFreteSecurityConfig.java` e `ExecucaoFreteRepository.java`; `TransicaoFreteIntegrationTest.java` e `EncerramentoFreteNavigationTest.java`; `api.ts`, `AcompanhamentoExecucaoPage.tsx`, `FormularioExecucao.tsx` e `TransicaoFormulario.tsx`; `design.md`, `tasks.md` e este relatório.
 
-## Pendências do checklist
+## Pendências ao término do encerramento
 
 Nesta etapa, foram marcadas **5.2**, **7.2** e **7.3**. O checklist totaliza 14 de 39 tarefas concluídas. Os itens que também exigem outros comandos, integração ou decisões continuam desmarcados. Os IDs P1 a P7 remetem ao [registro de decisões do design](design.md#open-questions).
 
@@ -141,3 +141,113 @@ Nesta etapa, foram marcadas **5.2**, **7.2** e **7.3**. O checklist totaliza 14 
 | 8.1–8.3 | Completar o aceite integrado das quatro ações e do início. A designação do autônomo continua dependente de RF002/RF009 em P7. |
 
 Nenhum arquivo de implementação do RF003, RF009, RF011, RF013 ou RF014 foi editado. O segundo prompt ficou reservado para a revisão posterior.
+
+## Ocorrência sem interrupção e verificação da US-012
+
+Base local `79368da`. O formulário do acompanhamento envia a descrição, a data, o horário, a revisão e o ciclo ao novo POST `/api/fretes/{freteId}/execucao/ocorrencias`. A migração V14 cria o recibo da ocorrência. Sob bloqueio do frete, o serviço revalida a autoria e recupera o resultado de uma confirmação já gravada. Uma chave nova registra outro evento, mesmo com descrição e horário iguais. Evento e recibo são gravados juntos. O estado anterior e o resultante são `EM_EXECUCAO`.
+
+- Com JDK 21 e PostgreSQL 16 dedicado, passaram os 64 testes da seleção Maven documentada na etapa de encerramento. A execução usou uma cópia limpa dos fontes porque o diretório local `target` continha migrações antigas. O novo teste de integração usa o motorista designado e confere reenvio, conflito com descrição alterada, segundo ID, dois recibos e estado após nova consulta.
+- Em um teste Selenium temporário com o prestador, voltar sem registrar fez zero POSTs. Após a perda simulada da primeira resposta depois do commit, “Tentar novamente” reenviou o mesmo corpo e recuperou o mesmo ID. Um segundo formulário com os mesmos dados gerou outro ID. Após recarregar, o frete continuava em execução com dois eventos adicionais no banco.
+- Build do frontend, ESLint da feature, OpenSpec estrito e checagem de whitespace passaram. Foram marcados 4.6 e 6.4, considerando também as verificações anteriores da interrupção. A cobertura de ocorrência nas duas modalidades exigida em 4.3 permanece pendente.
+- US-012: a consulta de um frete em `PRONTO_INICIO` retornou `INICIO` para o motorista designado e nenhuma ação para a conta distinta do prestador. As regras de domínio rejeitaram recursos inválidos. Ainda faltam o POST de início, a ação na tela, o evento persistido e o teste de concorrência com cancelamento (4.2, 6.3 e 5.6).
+
+## Início da execução pela US-012
+
+A etapa partiu da árvore local de `feat/rf010-acompanhamento-ocorrencias` em `79368da`, com a ocorrência sem interrupção já modificada e a V14 presente. A V15 acrescenta somente `rf010_recibo_inicio`. Conferir sua numeração antes da integração.
+
+Na rota `/fretes/:freteId/execucao`, o botão “Iniciar execução” segue a lista de ações da consulta. A confirmação mostra o efeito no frete e envia `chaveOperacao`, `estadoEsperado` e `revisaoDesignacao` para `POST /api/fretes/{freteId}/execucao/inicio` com sessão e CSRF. O serviço bloqueia a linha do frete, relê a designação e verifica o vínculo do motorista antes de consultar o recibo. Para um início novo, confere o estado, a revisão, o motorista verificado e a compatibilidade do veículo pelo RF009. Estado, histórico com autoria da sessão e recibo são gravados na mesma transação. O ID de `INICIO` passa a ser a referência do ciclo para a primeira ocorrência.
+
+### Evidências de persistência e concorrência
+
+- Em PostgreSQL 16 com Java 21, passaram 71 testes na seleção de backend, incluindo 24 testes de comandos RF010 e as regressões de RF009, RF011 e RF014. A execução partiu de uma cópia limpa de `backend/src` e `pom.xml`, com esquemas novos por suíte.
+- O POST recusou sessão ausente, falta de CSRF, prestador sem vínculo de motorista, colega, motorista substituído, revisão antiga e veículo incompatível. A troca de motorista após a consulta invalidou a confirmação aberta. Mesmo após um início válido, o motorista substituído recebeu 403 ao reenviar. Uma falha induzida na inserção do recibo reverteu evento e estado. Retirada a falha, a mesma confirmação funcionou.
+- A disputa usou o POST real de cancelamento do RF011, uma transação por concorrente e verificação de espera por bloqueio no PostgreSQL. Com início vencedor, o cancelamento recebeu 409 e restaram `EM_EXECUCAO`, um evento do motorista, um recibo e zero avisos. Com cancelamento vencedor, o início recebeu 409 e restaram `CANCELADO`, um evento do cliente, um aviso e zero recibos de início.
+- A API de ocorrência recusou descrição composta por espaços Unicode, data ou horário ausente e horário inválido nas duas modalidades. Em cada modalidade, a confirmação válida produziu um recibo vinculado ao ciclo, com estados anterior e resultante iguais a `EM_EXECUCAO`.
+
+### Selenium e frontend
+
+Passaram os quatro testes de navegação, incluindo os três de regressão do encerramento. No frete de pessoas 910061, o motorista abriu a confirmação e a designação mudou antes do clique. O navegador recebeu a recusa e o banco continuou sem evento. Após nova designação e atualização da tela, a primeira resposta de sucesso foi descartada depois do commit. “Tentar novamente” recuperou o mesmo ID. O motorista registrou a ocorrência e recarregou o acompanhamento. O SQL confirmou início **910075**, ocorrência **910076**, ciclo da ocorrência **910075** e frete em **EM_EXECUCAO**. A consulta encontrou exatamente esses dois eventos no frete.
+
+Passaram os nove testes Node de designação e planejamento, o build do frontend, o ESLint da feature, a validação estrita do OpenSpec e a verificação de whitespace.
+
+### Reprodução
+
+Usar banco de teste exclusivo e as variáveis `MUV_RF010_DB_*` e `MUV_RF011_DB_*` já descritas. Para Selenium, servir o build com proxy para o backend de teste e indicar a URL do frontend em `selenium.base-url`. Nesta máquina foram usados Chromium headless e ChromeDriver local.
+
+```sh
+# backend, com JDK 21
+mvn -B -ntp -Dtest=RegrasExecucaoTest,ExecucaoFreteIntegrationTest,TransicaoFreteIntegrationTest,CompatibilidadeDesignacaoServiceTest,FreightCancellationIntegrationTest,FreightHistoryServiceTest test
+mvn -B -ntp -Dtest=InicioFreteNavigationTest,EncerramentoFreteNavigationTest -Dmuv.rf010.e2e=true -Dselenium.base-url=http://127.0.0.1:18114 test
+
+# frontend, com Node 24
+npm run build
+./node_modules/.bin/eslint src/features/execucao
+node --test --test-isolation=none test/*.test.mjs
+
+# raiz
+openspec validate rf010-acompanhamento-execucao-ocorrencias --strict
+git diff --check
+```
+
+### Checklist após o início
+
+Itens fechados nesta etapa: 4.2, 4.3, 5.6, 6.3 e 8.3. O checklist fica com 21 de 39 concluídos.
+
+| Quem pode fechar | Itens abertos e evidência ou decisão restante |
+| --- | --- |
+| Gustavo e Walison na própria branch | **3.3, 4.1, 5.3, 5.5** — completar a matriz de contratos, autoria enviada pelo cliente, recusas, rollback e formulários antigos em ciclos sucessivos. **6.1, 6.5, 7.1, 7.4** — verificar troca de frete, pontos de entrada já autorizados, retomada confirmada em Selenium e falha de atualização após sucesso. Links que exijam editar RF009 ou RF014 precisam de alinhamento. **8.1** — percorrer contratação e designação reais nas duas modalidades, com retomada e encerramento em caminhos distintos. |
+| Gustavo e Walison, com as referências visuais | **7.5** — comparar as três telas e verificar teclado e foco. Os dois podem resolver P6 disponibilizando uma referência aprovada. |
+| Com Josué (RF014) | **2.1, 2.3** — fechar P5 sobre histórico e legados. **2.4** — decidir P2 sobre horário e exibição. **1.4, 6.2** — fechar P2/P3 para os campos e obter as referências de P6. |
+| Com Rafael (RF013) | **4.5, 5.4** — acordar P4 sobre consumo dos eventos e duplicatas de avisos. |
+| Após liberação por RF002/RF009 | **8.2** — executar o fluxo de motorista autônomo (P7) e confirmar a apresentação da autoria quando a conta reúne os dois papéis (P1). |
+
+## Cobertura por critério após a US-012
+
+A revisão usou a árvore local da branch em `79368da`, incluindo V14 e V15. Os nomes abaixo identificam métodos JUnit que podem ser selecionados pelo Surefire. Os testes HTTP obtêm sessões pelo login normal. Os testes Selenium usam Chromium, o frontend compilado, Spring e PostgreSQL 16. As contas, endereços, propostas e recursos são dados controlados de teste.
+
+| Item | Critério e teste que o comprova |
+| --- | --- |
+| 3.3 | `sessaoCsrfEAutorDoContrato` cobre os cinco POSTs anônimos com CSRF válido (401), ausente e inválido (403). A interrupção com campos extras de autor e papel devolve e grava a conta da sessão. `rejeitaColegaERevalidaAutorizacaoAposSubstituicaoAteNoReenvio` cobre falsificação por terceiro e replay após substituição. `motoristaConfirmaERecuperaARespostaDepoisDoCommit` compara a resposta serializada completa, ID, autor e estados. `exigeSessaoCsrfEJustificativa` e `prestadorPodeConfirmarEChaveUsadaOuNovaTentativaGeramConflito` distinguem 400 de 409. |
+| 4.1 | `distinguePrestadorMotoristaEContasAlheiasEmTodosOsEstados` cobre a matriz das cinco ações por estado e vínculo. `inicioRevalidaSessaoRevisaoMotoristaERecursosAntesDaEscrita` confere revisão e designação atuais. `inicioECancelamentoDisputamOMesmoFrete` e `retomadaEEncerramentoConcorrentesGravamSomenteOVencedor` verificam bloqueio real nas duas ordens. Falha no INSERT do recibo: `falhaNoReciboDeInicioMantemFretePronto`, `falhaDoReciboReverteEstadoEEventoEPermiteReenvio`, `falhaNoReciboDeRetomadaMantemAInterrupcaoEPermiteReenvio` e `falhaNoReciboReverteOcorrenciaOuEncerramento` verificam rollback e nova tentativa nas cinco ações. |
+| 5.3 | `cadaRecusaPreservaEstadoEventosEAvisos` submete cada comando nos três estados terminais e em `AGUARDANDO_DESIGNACAO`. Também submete retomada e encerramento em execução ativa e, com interrupção aberta, justificativas em branco e confirmação nula. Cada rejeição é seguida de SQL sobre estado, quantidade de eventos e avisos do frete. Os valores de confirmação falsos são cobertos por `validaConfirmacaoReferenciaRecursosEAutorizacaoNoMomentoDaRetomada` e `exigeInterrupcaoConfirmacaoEAutorizacaoParaEncerrar`. |
+| 5.5 | `formulariosDeDuasInterrupcoesComMesmaDesignacao` recusa ocorrência/interrupção do ciclo anterior e retomada/encerramento da primeira interrupção quando a segunda está aberta. `formularioDeCicloAnteriorFalhaMasReenvioOriginalContinuaValidoAposRetomada` distingue o reenvio da confirmação já gravada. `validaConfirmacaoReferenciaRecursosEAutorizacaoNoMomentoDaRetomada` verifica a troca de motorista. `ciclosNavegacaoTecladoERecuperacao` mantém abertos os dois formulários em abas distintas durante uma interrupção e retomada reais. Ambos recebem conflito e oferecem atualização. |
+| 6.1 e 6.5 | `ciclosNavegacaoTecladoERecuperacao` troca do frete 910063 para 910061, confirma ID e estado novos e o descarte do formulário anterior. `contratacaoAteDesfecho` entra por `/cliente/solicitacoes/:id/propostas`, recebe o ID de frete criado, acessa a designação por `/prestador/fretes/:id/designacao` e o RF010 por `/fretes/:freteId/execucao`. O motorista entra diretamente no acompanhamento. O teste verifica a ausência dos links administrativos de veículos e motoristas. Os retornos de retomada e encerramento são cobertos por `voltarDaRetomadaEDoEncerramentoPreservaAInterrupcaoSemPost`. O roteador compartilhado e os módulos dos colegas permaneceram intactos. |
+| 7.1 | `ciclosNavegacaoTecladoERecuperacao` verifica motivo e autor da interrupção, recursos e controles da retomada, disposição dos cartões a 390 px e confirmação pelo navegador. `contratacaoAteDesfecho` verifica o autor real da retomada no banco, nas duas modalidades, e recarrega o frete em execução. A comparação com a imagem aprovada continua registrada separadamente em 7.5. |
+| 7.4 | `ciclosNavegacaoTecladoERecuperacao` provoca uma falha no GET que sucede a retomada confirmada. Resultado persistido e erro de consulta aparecem juntos. “Tentar novamente” refaz a leitura e recoloca o foco no recibo. Em conflito, o usuário atualiza, reabre a mesma ação e pode revisar o texto. A consulta SQL ao fim confirma que a atualização e a reabertura não enviaram os rascunhos. `motoristaIniciaFreteDePessoasERegistraOcorrenciaNoMesmoCiclo` cobre alteração de designação depois da abertura. |
+| 8.1 | `contratacaoAteDesfecho` executa quatro combinações: pessoas/retomada, pessoas/encerramento, encomenda/retomada e encomenda/encerramento. O ponto de partida de cada teste é uma solicitação aberta com uma proposta enviada. O cliente aceita pela tela, o prestador designa, o motorista inicia, o prestador registra ocorrência, o motorista interrompe e o prestador escolhe o desfecho. Após recarga, o teste verifica a situação mostrada e a sequência de cinco eventos com autores no PostgreSQL. A sessão do cliente consulta o endpoint normal do RF014 e encontra os quatro fatos de execução na linha do tempo daquele frete. Nenhum percurso parou em um módulo de colega. |
+
+### Correções verificadas no RF010
+
+O rascunho de uma ação em conflito era perdido ao atualizar. Agora a tela guarda seus campos em memória para revisão no mesmo frete e na mesma ação. O relato, a data e o horário podem ser recuperados ao reabrir. A confirmação e a chave são novas. Voltar, trocar de ação ou trocar de frete descarta o rascunho. O foco vai ao título ao abrir o formulário e à mensagem pertinente após erro ou confirmação. Uma ação nova limpa o recibo anterior. A validação do backend também cobre o caractere de espaço Unicode U+0085, verificado por `validaTextosEConfirmacoesSemLimitarDatas`.
+
+### Teclado, capturas e dependências
+
+Em `ciclosNavegacaoTecladoERecuperacao`, o foco inicial é o título. Tab percorre data, horário, texto, situação da encomenda quando exibida, confirmação quando exigida, envio e retorno. Shift+Tab retorna ao envio e Enter com campos vazios leva o foco ao primeiro campo obrigatório, a data, nos três formulários. O teste de recuperação verifica o foco no alerta de conflito, no erro de consulta e no resultado confirmado. Os cartões empilham a 390 px. As capturas do RF010 estão em [evidencias/](evidencias/), em larguras de janela de 1360 e 390 px.
+
+**Comparação aprovada: 0 de 3 telas.** O documento de arquitetura disponível aponta para o protótipo geral (nó 11-2). Os três JPEGs identificados no design não foram localizados no projeto ou nos Downloads e não foi possível identificar os três frames aprovados nesse link. O arquivo local “MUV - Protótipo.zip” contém somente cadastro e autenticação. As capturas desta rodada registram a aplicação e ficam disponíveis para comparação quando a referência for confirmada.
+
+| Responsável | Pergunta para fechar o aceite |
+| --- | --- |
+| Gustavo e Walison, P6 | Quais são os links permanentes ou as três imagens aprovadas de registro/interrupção, retomada e encerramento? Com essas referências, a dupla pode concluir 7.5 e a parte visual de 1.4 e 6.2 na branch. |
+| Gustavo e Walison com Josué, P2/P3 | Qual fuso e significado têm a data e a hora informadas frente ao instante de auditoria? Onde guardar e para quem exibir o local e a situação da encomenda? Isso afeta 1.4, 2.4 e 6.2. |
+| Josué com a dupla, P5 | O RF014 aceita os recibos RF010 como fonte de estados e vínculo de ciclo? Como tratar históricos legados sem evento que abra o ciclo? Falta esse acordo para 2.1 e 2.3. |
+| Rafael com a dupla, P4 | Para quais fatos e destinatários o RF013 deve emitir avisos e qual identificador usará para evitar duplicatas em reenvios? 4.5 e 5.4 aguardam o contrato. |
+| RF002/RF009 e dupla, P7/P1 | Qual fluxo de cadastro e designação associará a conta do autônomo ao motorista próprio e permitirá chegar a PRONTO_INICIO? Para 8.2, a dupla precisa exercitar esse fluxo e definir o papel exibido quando ambos os vínculos coincidem. |
+
+### Verificações da rodada
+
+Para repetir a seleção de navegador documentada acima, incluir `PercursoExecucaoNavigationTest` em `-Dtest` junto de `InicioFreteNavigationTest` e `EncerramentoFreteNavigationTest`. Os testes geram PNGs em `target/rf010-browser`. Em uma execução intermediária, uma recompilação simultânea no mesmo diretório de build interferiu na inicialização das rotas da regressão de encerramento. Na cópia limpa dos fontes finais, as três classes Selenium terminaram com 9 testes aprovados (5 de percurso, 1 de início, 3 de encerramento). O processo combinado foi encerrado posteriormente durante o backend. A seleção de backend foi executada separadamente.
+
+Resultado final: **76 testes de backend, 9 Selenium e 9 Node aprovados**, sem falhas, erros ou casos ignorados nas seleções. Passaram também o build do frontend, o ESLint da feature, OpenSpec estrito e `git diff --check`. Foram fechados **3.3, 4.1, 5.3, 5.5, 6.1, 6.5, 7.1, 7.4 e 8.1**. O checklist passou de 21 para **30 de 39**. Permanecem abertos **1.4, 2.1, 2.3, 2.4, 4.5, 5.4, 6.2, 7.5 e 8.2**.
+
+### Referências aprovadas para a conferência visual
+
+A dupla indicou os três JPEGs como referências aprovadas de desktop. Nesta pasta de trabalho estão disponíveis as seis capturas da aplicação. Os títulos abaixo foram lidos nas capturas da aplicação. Falta conferir os títulos nos JPEGs e registrar, lado a lado, campos, obrigatoriedade, textos, avisos, ações e painéis.
+
+| Título na aplicação | Desktop para comparação | Responsividade a 390 px |
+| --- | --- | --- |
+| Registre uma ocorrência | [Registro e interrupção](evidencias/interrupcao-1360.png) | [Painéis empilhados](evidencias/interrupcao-390.png) |
+| Retome a execução com segurança | [Retomada](evidencias/retomada-1360.png) | [Painéis empilhados](evidencias/retomada-390.png) |
+| Encerre sem marcar como concluído | [Encerramento](evidencias/encerramento-1360.png) | [Painéis empilhados](evidencias/encerramento-390.png) |
+
+A verificação a 390 px corresponde ao teste de responsividade já executado. A comparação direta de desktop continua pendente nos itens 1.4, 6.2 e 7.5. Em 1.4 e 6.2, P2 ainda trata do significado e fuso do horário informado, e P3 da persistência e visibilidade dos campos auxiliares.

@@ -4,25 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Dimension;
-import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.WebDriverWait;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -36,7 +27,7 @@ import org.springframework.test.context.jdbc.Sql;
 @Sql(scripts = "/db/rf010-consulta.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
 @Sql(statements = "ALTER SEQUENCE historico_execucao_frete_id_seq RESTART WITH 910075",
      executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
-class EncerramentoFreteNavigationTest {
+class EncerramentoFreteNavigationTest extends NavegacaoExecucaoFixture {
     private static final String SCHEMA = "rf010_browser_" + UUID.randomUUID().toString().replace("-", "");
 
     @DynamicPropertySource
@@ -45,11 +36,6 @@ class EncerramentoFreteNavigationTest {
         properties.add("spring.flyway.default-schema", () -> SCHEMA);
         properties.add("spring.datasource.hikari.connection-init-sql", () -> "SET search_path TO " + SCHEMA);
     }
-
-    @Autowired ObjectProvider<WebDriver> drivers;
-    @Autowired JdbcClient db;
-    @Autowired PasswordEncoder senhas;
-    @Value("${selenium.base-url:http://localhost:5173}") String base;
 
     @Test
     void encerraEncomendaReenviaAposPerdaDaRespostaERecarrega() throws Exception {
@@ -202,14 +188,6 @@ class EncerramentoFreteNavigationTest {
         esperarTexto(driver, "Encerre sem marcar como concluído");
     }
 
-    private void preencher(WebDriver driver, String justificativa) {
-        js(driver).executeScript("""
-                document.querySelector('[name=data]').value = '2000-01-02';
-                document.querySelector('[name=horario]').value = '09:55';
-                """);
-        driver.findElement(By.name("texto")).sendKeys(justificativa);
-    }
-
     private void simularPerdaDaResposta(WebDriver driver) {
         js(driver).executeScript("""
                 const original = window.fetch.bind(window);
@@ -228,41 +206,6 @@ class EncerramentoFreteNavigationTest {
                     return resposta;
                 };
                 """);
-    }
-
-    private WebDriver entrar(String perfil) {
-        String email = perfil + "910@example.test";
-        db.sql("UPDATE usuario SET senha = :senha WHERE email = :email")
-                .param("senha", senhas.encode("Teste_RF010#")).param("email", email).update();
-        WebDriver driver = drivers.getObject();
-        try {
-            driver.get(base + "/entrar");
-            espera(driver).until(ExpectedConditions.visibilityOfElementLocated(By.name("email"))).sendKeys(email);
-            driver.findElement(By.name("senha")).sendKeys("Teste_RF010#");
-            driver.findElement(By.cssSelector("form button:not([type='button'])")).click();
-            espera(driver).until(ExpectedConditions.urlContains("/cliente/planejar-viagem"));
-            return driver;
-        } catch (RuntimeException erro) {
-            driver.quit();
-            throw erro;
-        }
-    }
-
-    private void esperarTexto(WebDriver driver, String texto) {
-        espera(driver).until(ExpectedConditions.textToBePresentInElementLocated(By.tagName("main"), texto));
-    }
-
-    private void clicar(WebDriver driver, String texto) {
-        espera(driver).until(ExpectedConditions.elementToBeClickable(
-                By.xpath("//button[normalize-space()='" + texto + "']"))).click();
-    }
-
-    private WebDriverWait espera(WebDriver driver) {
-        return new WebDriverWait(driver, Duration.ofSeconds(12));
-    }
-
-    private JavascriptExecutor js(WebDriver driver) {
-        return (JavascriptExecutor) driver;
     }
 
     private void captura(WebDriver driver, String nome) throws Exception {

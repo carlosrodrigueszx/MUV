@@ -25,9 +25,14 @@ public class TransicaoFreteService {
 
     public record Comando(
             UUID chaveOperacao, String estadoEsperado, Long revisaoDesignacao, Long cicloExecucaoId,
-            String justificativa, LocalDate data, LocalTime horario, Long interrupcaoId, Boolean confirmou, String situacaoEncomenda) {
+            String descricao, String justificativa, LocalDate data, LocalTime horario,
+            Long interrupcaoId, Boolean confirmou, String situacaoEncomenda) {
+        String texto(Acao acao) {
+            return acao == Acao.OCORRENCIA ? descricao : justificativa;
+        }
+
         Long referencia(Acao acao) {
-            return acao == Acao.INTERRUPCAO ? cicloExecucaoId : interrupcaoId;
+            return acao.usaCicloExecucao() ? cicloExecucaoId : interrupcaoId;
         }
         LocalDateTime dataHoraInformada() {
             return data == null || horario == null ? null : LocalDateTime.of(data, horario);
@@ -38,10 +43,6 @@ public class TransicaoFreteService {
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public Resultado confirmar(long freteId, long autorId, Acao acao, Comando comando) {
-        if (acao != Acao.INTERRUPCAO && acao != Acao.RETOMADA
-                && acao != Acao.ENCERRAMENTO_SEM_CONCLUSAO) {
-            throw new IllegalArgumentException("Transição sem comando disponível.");
-        }
         var frete = repositorio.bloquearFrete(freteId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         var vinculos = RegrasExecucao.vinculos(autorId, frete.prestadorId(), frete.contaMotorista());
@@ -52,7 +53,13 @@ public class TransicaoFreteService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe a chave da confirmação.");
         }
 
-        boolean exigeConfirmacao = acao != Acao.INTERRUPCAO;
+        boolean inicio = acao == Acao.INICIO;
+        if (inicio && (comando.data() != null || comando.horario() != null || comando.justificativa() != null
+                || comando.descricao() != null || comando.interrupcaoId() != null || comando.cicloExecucaoId() != null
+                || comando.confirmou() != null || comando.situacaoEncomenda() != null)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Dados incompatíveis com o início.");
+        }
+        boolean exigeConfirmacao = acao == Acao.RETOMADA || acao == Acao.ENCERRAMENTO_SEM_CONCLUSAO;
         var recibo = repositorio.consultarRecibo(freteId, comando.chaveOperacao());
         if (recibo.isPresent()) {
             var original = recibo.get();
@@ -61,7 +68,7 @@ public class TransicaoFreteService {
                     || !Objects.equals(original.estadoAnterior(), comando.estadoEsperado())
                     || !Objects.equals(original.revisaoDesignacao(), comando.revisaoDesignacao())
                     || !Objects.equals(original.referenciaId(), comando.referencia(acao))
-                    || !Objects.equals(original.justificativa(), comando.justificativa())
+                    || !Objects.equals(original.texto(), comando.texto(acao))
                     || !Objects.equals(original.situacaoEncomenda(), comando.situacaoEncomenda())
                     || !Objects.equals(original.dataHoraInformada(), comando.dataHoraInformada())) {
                 throw conflito("A chave já foi usada em outra confirmação.");
@@ -71,28 +78,28 @@ public class TransicaoFreteService {
         }
 
         if (comando.estadoEsperado() == null || comando.revisaoDesignacao() == null
-                || comando.referencia(acao) == null
-                || !RegrasExecucao.dadosValidos(acao, comando.justificativa(), comando.data(),
+                || (!inicio && comando.referencia(acao) == null)
+                || !RegrasExecucao.dadosValidos(acao, comando.texto(acao), comando.data(),
                         comando.horario(), Boolean.TRUE.equals(comando.confirmou()))
-                || comando.horario().getNano() % 1_000 != 0
+                || (!inicio && comando.horario().getNano() % 1_000 != 0)
                 || (comando.situacaoEncomenda() != null
                     && (acao != Acao.ENCERRAMENTO_SEM_CONCLUSAO || !"ENCOMENDA".equals(frete.modalidade())))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Verifique os dados e a confirmação do formulário.");
         }
 
-        Long referencia = repositorio.referenciaVigente(freteId, acao).orElse(null);
-        boolean parteDaInterrupcao = acao != Acao.INTERRUPCAO;
+        Long referencia = inicio ? null : repositorio.referenciaVigente(freteId, acao).orElse(null);
+        boolean parteDaInterrupcao = !acao.usaCicloExecucao();
         var vigente = new Contexto(frete.estado(), frete.revisaoDesignacao(),
                 parteDaInterrupcao ? null : referencia, parteDaInterrupcao ? referencia : null);
         var informado = new Contexto(comando.estadoEsperado(), comando.revisaoDesignacao(),
                 comando.cicloExecucaoId(), comando.interrupcaoId());
-        boolean recursosValidos = acao != Acao.RETOMADA || acompanhamento.recursosValidos(frete);
+        boolean recursosValidos = (!inicio && acao != Acao.RETOMADA) || acompanhamento.recursosValidos(frete);
         if (!RegrasExecucao.novaConfirmacaoElegivel(acao, vinculos, vigente, informado, recursosValidos)
-                || !repositorio.atualizarEstado(frete, acao.estadoResultante())) {
+                || (acao != Acao.OCORRENCIA && !repositorio.atualizarEstado(frete, acao.estadoResultante()))) {
             throw conflito("O frete foi atualizado ou os recursos não são elegíveis. Recarregue o acompanhamento.");
         }
 
-        long eventoId = repositorio.gravarEvento(frete, autorId, acao, comando.justificativa());
+        long eventoId = repositorio.gravarEvento(frete, autorId, acao, comando.texto(acao));
         repositorio.gravarRecibo(freteId, acao, comando.chaveOperacao(), eventoId, vigente,
                 referencia, comando.dataHoraInformada(), comando.situacaoEncomenda());
         return new Resultado(eventoId, autorId, vigente.estado(), acao.estadoResultante());

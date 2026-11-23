@@ -1,4 +1,5 @@
 import { type FormEvent, useRef, useState } from "react";
+import { focarAoMontar } from "./foco";
 import type { AcaoExecucao, Acompanhamento } from "./api";
 
 type AcaoFormulario = Exclude<AcaoExecucao, "INICIO">;
@@ -10,7 +11,7 @@ const rotulos = {
     voltar: "Voltar sem registrar", aceite: null,
   },
   INTERRUPCAO: {
-    titulo: "Registre uma ocorrência", texto: "Justificativa da interrupção",
+    titulo: "Registre uma ocorrência", texto: "Justificativa obrigatória",
     efeito: "A situação mudará para Interrompido.", confirmar: "Registrar e interromper execução",
     voltar: "Voltar sem registrar", aceite: null,
   },
@@ -20,8 +21,8 @@ const rotulos = {
     voltar: "Voltar ao acompanhamento", aceite: "Confirmo que é possível prosseguir com o serviço.",
   },
   ENCERRAMENTO_SEM_CONCLUSAO: {
-    titulo: "Encerre sem marcar como concluído", texto: "Justificativa do encerramento",
-    efeito: "A situação mudará para Encerrado sem conclusão. Nenhuma entrega será registrada.",
+    titulo: "Encerre sem marcar como concluído", texto: "Justificativa obrigatória",
+    efeito: "Esta ação não é uma conclusão",
     confirmar: "Encerrar sem conclusão",
     voltar: "Voltar e manter interrompido", aceite: "Confirmo que o frete não foi concluído.",
   },
@@ -43,31 +44,41 @@ type Props = {
   acaoInicial: AcaoFormulario;
   onConfirmar: (dados: DadosFormulario) => Promise<void>;
   onVoltar: () => void;
-  acaoFixa?: boolean;
   somenteReenvio?: boolean;
-  onAtualizar?: () => void;
+  rascunho?: DadosFormulario;
+  onAtualizar?: (dados: DadosFormulario) => void;
 };
 
 const campo = "w-full rounded-lg border border-[#dfe6e7] bg-[#f5f7f8] p-2 text-sm";
 
 export function FormularioExecucao({
-  contexto, acaoInicial, onConfirmar, onVoltar, acaoFixa = false, somenteReenvio = false, onAtualizar,
+  contexto, acaoInicial, onConfirmar, onVoltar, somenteReenvio = false, onAtualizar, rascunho,
 }: Props) {
   const [acao, setAcao] = useState(acaoInicial);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const formulario = useRef<HTMLFormElement>(null);
   const envioEmCurso = useRef(false);
   const textos = rotulos[acao];
   const interrompido = acao === "RETOMADA" || acao === "ENCERRAMENTO_SEM_CONCLUSAO";
+  const encerramento = acao === "ENCERRAMENTO_SEM_CONCLUSAO";
   const interrupcao = contexto.eventos.find((evento) => evento.id === contexto.interrupcaoId);
+
+  function dadosDoFormulario(form: HTMLFormElement): DadosFormulario {
+    const campos = new FormData(form);
+    const situacao = String(campos.get("situacaoEncomenda") ?? "");
+    return {
+      acao, texto: String(campos.get("texto") ?? ""), data: String(campos.get("data") ?? ""),
+      horario: String(campos.get("horario") ?? ""), confirmou: campos.has("confirmou"),
+      situacaoEncomenda: situacao.trim() ? situacao : undefined,
+    };
+  }
 
   async function confirmar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     if (envioEmCurso.current || onAtualizar) return;
-    const campos = new FormData(evento.currentTarget);
-    const texto = String(campos.get("texto") ?? "");
-    const situacao = String(campos.get("situacaoEncomenda") ?? "");
-    if (/^\p{White_Space}*$/u.test(texto)) {
+    const dados = dadosDoFormulario(evento.currentTarget);
+    if (/^\p{White_Space}*$/u.test(dados.texto)) {
       setErro(`Preencha o campo ${textos.texto.toLocaleLowerCase("pt-BR")}.`);
       return;
     }
@@ -75,14 +86,7 @@ export function FormularioExecucao({
     setEnviando(true);
     setErro(null);
     try {
-      await onConfirmar({
-        acao,
-        texto,
-        data: String(campos.get("data")),
-        horario: String(campos.get("horario")),
-        confirmou: campos.has("confirmou"),
-        situacaoEncomenda: situacao.trim() ? situacao : undefined,
-      });
+      await onConfirmar(dados);
     } catch (falha: unknown) {
       setErro(falha instanceof Error ? falha.message : "Não foi possível confirmar.");
     } finally {
@@ -93,43 +97,55 @@ export function FormularioExecucao({
 
   return (
     <>
-      <h1 className="text-2xl font-bold">{textos.titulo}</h1>
+      <p className="mb-5 text-xs font-semibold text-[#17695b]">RF010 / MUV</p>
+      <h1 tabIndex={-1} ref={focarAoMontar} className="text-2xl font-bold">{textos.titulo}</h1>
       <p className="mt-2 text-sm text-[#637479]">
-        FR-{contexto.freteId} · {interrompido ? "Interrompido" : "Em execução"} · {contexto.usuarioAutenticado}
+        FR-{contexto.freteId} · {interrompido ? "Interrompido" : "Em execução"}{!interrompido && ` · Usuário autorizado: ${contexto.usuarioAutenticado}`}
+        {encerramento && " · Use esta opção se não for possível retomar o serviço."}
+        {acao === "RETOMADA" && interrupcao?.horarioRegistro && ` desde ${new Intl.DateTimeFormat("pt-BR", {
+          dateStyle: "medium", timeStyle: "short", timeZone: "UTC",
+        }).format(new Date(interrupcao.horarioRegistro))} UTC`}
       </p>
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <form className="min-w-0 space-y-4 rounded-xl border border-[#dfe6e7] bg-white p-5" onSubmit={confirmar}>
-          {acaoFixa && !interrompido && <p className="text-sm font-medium">Tipo de registro · Interrupção da execução</p>}
-          {!interrompido && !acaoFixa && (
+        <form ref={formulario} className="min-w-0 space-y-4 rounded-xl border border-[#dfe6e7] bg-white p-5" onSubmit={confirmar}>
+          <h2 className="text-lg font-semibold">{encerramento ? "Motivo do encerramento" : interrompido ? "Registro de retomada" : "O que aconteceu?"}</h2>
+          {!interrompido && (
+            <>
             <label className="block text-sm font-medium">
-              Tipo de registro
-              <select className={campo} value={acao} disabled={enviando} onChange={(evento) => {
+              Tipo de registro *
+              <select name="tipo" required className={campo} value={acao} disabled={enviando || somenteReenvio || Boolean(onAtualizar)} onChange={(evento) => {
                 setAcao(evento.target.value === "INTERRUPCAO" ? "INTERRUPCAO" : "OCORRENCIA");
                 setErro(null);
               }}>
-                <option value="OCORRENCIA">Ocorrência sem interrupção</option>
-                <option value="INTERRUPCAO">Interrupção da execução</option>
+                <option disabled={!contexto.acoesElegiveis.includes("OCORRENCIA")} value="OCORRENCIA">Ocorrência sem interrupção</option>
+                <option disabled={!contexto.acoesElegiveis.includes("INTERRUPCAO")} value="INTERRUPCAO">Interrupção da execução</option>
               </select>
             </label>
+            <p className="text-xs text-[#637479]">Retomada e encerramento sem conclusão ficam disponíveis quando o frete está interrompido.</p>
+            </>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm font-medium">Data <input className={campo} name="data" type="date" required disabled={enviando} readOnly={somenteReenvio} /></label>
-            <label className="block text-sm font-medium">Horário <input className={campo} name="horario" type="time" required disabled={enviando} readOnly={somenteReenvio} /></label>
+            <label className="block text-sm font-medium">Data * <input className={campo} name="data" defaultValue={rascunho?.data} type="date" required disabled={enviando} readOnly={somenteReenvio} /></label>
+            <label className="block text-sm font-medium">Horário * <input className={campo} name="horario" defaultValue={rascunho?.horario} type="time" required disabled={enviando} readOnly={somenteReenvio} /></label>
           </div>
           <label className="block text-sm font-medium">
-            {textos.texto}
-            <textarea className={campo} name="texto" required rows={3} disabled={enviando} readOnly={somenteReenvio} />
+            {textos.texto} *
+            <textarea className={campo} name="texto" defaultValue={rascunho?.texto} required rows={3} disabled={enviando} readOnly={somenteReenvio} />
           </label>
+          {!interrompido && <label className="block text-sm font-medium">
+            Local da ocorrência
+            <input className={campo} disabled placeholder="Indisponível para registro" />
+          </label>}
           {acao === "RETOMADA" && contexto.recursos && (
             <div className="rounded-lg bg-[#e5f2ee] p-3 text-sm">
               <p className="font-medium">Recursos confirmados</p>
-              <p>{contexto.recursos.motorista} · {contexto.recursos.veiculo} · {contexto.recursos.placa}</p>
+              <p>{contexto.recursos.motorista} · {contexto.recursos.veiculo} · {contexto.recursos.placa} · Compatíveis com {contexto.modalidade === "ENCOMENDA" ? "encomendas" : "transporte de pessoas"}</p>
             </div>
           )}
           {acao === "ENCERRAMENTO_SEM_CONCLUSAO" && contexto.modalidade === "ENCOMENDA" && (
             <label className="block text-sm font-medium">
               Situação da encomenda (opcional)
-              <textarea className={campo} name="situacaoEncomenda" rows={2}
+              <textarea className={campo} name="situacaoEncomenda" defaultValue={rascunho?.situacaoEncomenda} rows={2}
                 disabled={enviando} readOnly={somenteReenvio} />
             </label>
           )}
@@ -139,7 +155,7 @@ export function FormularioExecucao({
               {textos.aceite}
             </label>
           )}
-          {erro && <p role="alert" className="text-sm text-red-700">{erro}</p>}
+          {erro && <p ref={focarAoMontar} tabIndex={-1} role="alert" className="text-sm text-red-700">{erro}</p>}
           <button type="submit" disabled={enviando || Boolean(onAtualizar)} className={
             `rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-60 ${acao === "ENCERRAMENTO_SEM_CONCLUSAO" ? "bg-[#a63c3c]" : "bg-[#17695b]"}`
           }>
@@ -151,7 +167,7 @@ export function FormularioExecucao({
             acao === "RETOMADA" ? "Interrupção em aberto"
               : acao === "ENCERRAMENTO_SEM_CONCLUSAO" ? "Revise antes de confirmar" : "Efeito deste registro"
           }</h2>
-          {interrompido && interrupcao && (
+          {acao === "RETOMADA" && interrupcao && (
             <div className="break-words rounded-lg bg-[#f5f7f8] p-3">
               {interrupcao.horarioRegistro && (
                 <p>Horário do registro: <time dateTime={interrupcao.horarioRegistro}>{
@@ -165,15 +181,19 @@ export function FormularioExecucao({
             </div>
           )}
           <p className={`rounded-lg p-3 ${acao === "INTERRUPCAO" || acao === "ENCERRAMENTO_SEM_CONCLUSAO" ? "bg-[#fff2dd]" : "bg-[#e5f2ee]"}`}>
-            {textos.efeito}
+            <strong className="block">{textos.efeito}</strong>
+            {encerramento && "O histórico registrará o encerramento sem conclusão, com o motivo e o responsável."}
+            {acao === "RETOMADA" && "A retomada e sua justificativa serão adicionadas ao histórico."}
           </p>
+          {!interrompido && <p>O registro preserva autor, data, horário e {acao === "OCORRENCIA" ? "descrição" : "justificativa"} no histórico. O serviço não será marcado como concluído.</p>}
+          {encerramento && <p>Nenhuma entrega será registrada como realizada.</p>}
           {acao === "ENCERRAMENTO_SEM_CONCLUSAO" && (
             <div className="rounded-lg bg-[#f5f7f8] p-3">
               <p className="font-medium">Responsável pelo registro</p>
               <p>{contexto.usuarioAutenticado}</p>
             </div>
           )}
-          {acao !== "RETOMADA" && contexto.recursos && (
+          {!interrompido && contexto.recursos && (
             <div className="rounded-lg bg-[#f5f7f8] p-3">
               <p className="font-medium">Recursos atuais</p>
               <p>{contexto.recursos.motorista}</p>
@@ -181,7 +201,7 @@ export function FormularioExecucao({
             </div>
           )}
           {onAtualizar && (
-            <button type="button" onClick={onAtualizar} className="block font-semibold text-[#17695b]">
+            <button type="button" onClick={() => formulario.current && onAtualizar(dadosDoFormulario(formulario.current))} className="block font-semibold text-[#17695b]">
               Atualizar acompanhamento
             </button>
           )}

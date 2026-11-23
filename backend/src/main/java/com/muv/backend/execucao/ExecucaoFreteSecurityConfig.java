@@ -13,7 +13,8 @@ public class ExecucaoFreteSecurityConfig {
         return http.securityMatcher("/api/fretes/*/execucao", "/api/fretes/*/execucao/**")
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/fretes/*/execucao").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/fretes/*/execucao/interrupcoes",
+                        .requestMatchers(HttpMethod.POST, "/api/fretes/*/execucao/inicio",
+                                "/api/fretes/*/execucao/interrupcoes", "/api/fretes/*/execucao/ocorrencias",
                                 "/api/fretes/*/execucao/retomadas",
                                 "/api/fretes/*/execucao/encerramento-sem-conclusao").authenticated()
                         .anyRequest().denyAll())

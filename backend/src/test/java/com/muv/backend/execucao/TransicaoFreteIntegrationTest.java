@@ -40,6 +40,9 @@ import tools.jackson.databind.ObjectMapper;
 class TransicaoFreteIntegrationTest {
     private static final String SCHEMA = "rf010_interrupcao_" + UUID.randomUUID().toString().replace("-", "");
     private static final String ROTA = "/api/fretes/910063/execucao";
+    private static final String PESSOAS = "/api/fretes/910061/execucao";
+    private static final String INICIO = PESSOAS + "/inicio";
+    private static final String CANCELAR = "/api/fretes/910061/cancelamento";
     private static final String COMANDO = ROTA + "/interrupcoes";
     private static final String RETOMADA = ROTA + "/retomadas";
     private static final String ENCERRAMENTO = ROTA + "/encerramento-sem-conclusao";
@@ -59,6 +62,15 @@ class TransicaoFreteIntegrationTest {
 
     @BeforeEach
     void restaurarFreteEmExecucao() {
+        db.sql("DELETE FROM rf010_recibo_ocorrencia WHERE frete_id = 910061").update();
+        db.sql("DELETE FROM rf010_recibo_inicio WHERE frete_id = 910061").update();
+        db.sql("DELETE FROM notificacao WHERE frete_id = 910061").update();
+        db.sql("DELETE FROM historico_execucao_frete WHERE frete_id = 910061").update();
+        db.sql("""
+                UPDATE frete SET status = 'PRONTO_INICIO', revisao_designacao = 1, motorista_atual_id = 910011,
+                    veiculo_atual_id = 910021 WHERE id = 910061
+                """).update();
+        db.sql("DELETE FROM rf010_recibo_ocorrencia WHERE frete_id = 910063").update();
         db.sql("DELETE FROM rf010_recibo_encerramento WHERE frete_id = 910063").update();
         db.sql("DELETE FROM rf010_recibo_retomada WHERE frete_id = 910063").update();
         db.sql("DELETE FROM rf010_recibo_interrupcao WHERE frete_id = 910063").update();
@@ -68,6 +80,154 @@ class TransicaoFreteIntegrationTest {
                 UPDATE frete SET status = 'EM_EXECUCAO', motorista_atual_id = 910011, revisao_designacao = 1
                 WHERE id = 910063
                 """).update();
+    }
+
+    private String dadosInicio() {
+        return """
+                {"chaveOperacao":"%s","estadoEsperado":"PRONTO_INICIO","revisaoDesignacao":1}
+                """.formatted(UUID.randomUUID());
+    }
+
+    @Test
+    void inicioRevalidaSessaoRevisaoMotoristaERecursosAntesDaEscrita() throws Exception {
+        var atual = entrar("atual");
+        String comando = dadosInicio();
+        mvc.perform(get(PESSOAS).session(atual.session())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.acoesElegiveis[0]").value("INICIO"));
+        enviarComando(INICIO, csrf(null), comando, 401);
+        mvc.perform(post(INICIO).session(atual.session()).contentType("application/json").content(comando))
+                .andExpect(status().isForbidden());
+        enviarComando(INICIO, entrar("empresa"), comando, 403);
+        enviarComando(INICIO, entrar("colega"), comando, 403);
+        db.sql("UPDATE frete SET motorista_atual_id = 910012, revisao_designacao = 2 WHERE id = 910061").update();
+        enviarComando(INICIO, atual, comando, 403);
+        enviarComando(INICIO, entrar("colega"), comando, 409);
+        db.sql("UPDATE frete SET motorista_atual_id = 910011, revisao_designacao = 3 WHERE id = 910061").update();
+        enviarComando(INICIO, atual, comando, 409);
+        db.sql("UPDATE frete SET veiculo_atual_id = 910022 WHERE id = 910061").update();
+        enviarComando(INICIO, atual, comando.replace(":1}", ":3}"), 409);
+        conferirInicio("PRONTO_INICIO", 0, 0);
+    }
+
+    @Test
+    void falhaNoReciboDeInicioMantemFretePronto() throws Exception {
+        var motorista = entrar("atual");
+        String comando = dadosInicio();
+        db.sql("ALTER TABLE rf010_recibo_inicio ADD CONSTRAINT recusar_inicio CHECK (false)").update();
+        try {
+            assertThatThrownBy(() -> enviarComando(INICIO, motorista, comando, 200))
+                    .hasRootCauseInstanceOf(org.postgresql.util.PSQLException.class)
+                    .hasStackTraceContaining("recusar_inicio");
+            conferirInicio("PRONTO_INICIO", 0, 0);
+        } finally {
+            db.sql("ALTER TABLE rf010_recibo_inicio DROP CONSTRAINT recusar_inicio").update();
+        }
+        enviarComando(INICIO, motorista, comando, 200);
+        conferirInicio("EM_EXECUCAO", 1, 0);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void ocorrenciaExigeDescricaoDataEHorarioNasDuasModalidades(boolean pessoas) throws Exception {
+        var motorista = entrar("atual");
+        long ciclo = 910073;
+        if (pessoas) {
+            var resposta = enviarComando(INICIO, motorista, dadosInicio(), 200);
+            ciclo = json.readTree(resposta.getResponse().getContentAsString()).get("eventoId").asLong();
+        }
+        String rota = (pessoas ? PESSOAS : ROTA) + "/ocorrencias";
+        String dados = dados(UUID.randomUUID()).replace("910073", Long.toString(ciclo)).replace("justificativa", "descricao");
+        enviarComando(rota, motorista, dados.replace("Via bloqueada", "  "), 400);
+        enviarComando(rota, motorista, dados.replace("\"2000-01-02\"", "null"), 400);
+        enviarComando(rota, motorista, dados.replace("\"09:15\"", "null"), 400);
+        enviarComando(rota, motorista, dados.replace("09:15", "25:15"), 400);
+        var resposta = enviarComando(rota, motorista, dados, 200);
+        var evento = json.readTree(resposta.getResponse().getContentAsString());
+        assertThat(evento.get("estadoAnterior").asString()).isEqualTo("EM_EXECUCAO");
+        assertThat(evento.get("estadoResultante").asString()).isEqualTo("EM_EXECUCAO");
+        assertThat(db.sql("SELECT count(*) FROM rf010_recibo_ocorrencia WHERE ciclo_execucao_id = :id")
+                .param("id", ciclo).query(Integer.class).single()).isOne();
+    }
+
+    @Test
+    void inicioRecuperaEventoEAbreCicloParaOcorrencia() throws Exception {
+        var motorista = entrar("atual");
+        String comando = dadosInicio();
+        var original = enviarComando(INICIO, motorista, comando, 200).getResponse().getContentAsString();
+        assertThat(enviarComando(INICIO, motorista, comando, 200).getResponse().getContentAsString()).isEqualTo(original);
+        enviarComando(INICIO, motorista, dadosInicio(), 409);
+        var resposta = json.readTree(original);
+        assertThat(resposta.get("autorId").asLong()).isEqualTo(910003);
+        mvc.perform(get(PESSOAS).session(motorista.session())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.cicloExecucaoId").value(resposta.get("eventoId").asLong()))
+                .andExpect(jsonPath("$.acoesElegiveis[0]").value("OCORRENCIA"));
+        conferirInicio("EM_EXECUCAO", 1, 0);
+        db.sql("UPDATE frete SET motorista_atual_id = 910012 WHERE id = 910061").update();
+        enviarComando(INICIO, motorista, comando, 403);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void inicioECancelamentoDisputamOMesmoFrete(boolean iniciaPrimeiro) throws Exception {
+        var motorista = entrar("atual");
+        var cliente = entrar("cliente");
+        String iniciar = dadosInicio();
+        String cancelar = "{\"justificativa\":\"Mudança de planos\"}";
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var perdedora = new TransactionTemplate(transacoes).execute(ignorado -> {
+                db.sql("SELECT id FROM frete WHERE id = 910061 FOR UPDATE").query(Long.class).single();
+                var fila = executor.submit(() -> iniciaPrimeiro
+                        ? enviarComando(CANCELAR, cliente, cancelar, 409)
+                        : enviarComando(INICIO, motorista, iniciar, 409));
+                aguardarDisputaNoPostgres();
+                try {
+                    if (iniciaPrimeiro) enviarComando(INICIO, motorista, iniciar, 200);
+                    else enviarComando(CANCELAR, cliente, cancelar, 204);
+                } catch (Exception erro) {
+                    throw new AssertionError(erro);
+                }
+                return fila;
+            });
+            perdedora.get(10, TimeUnit.SECONDS);
+        }
+        conferirInicio(iniciaPrimeiro ? "EM_EXECUCAO" : "CANCELADO", iniciaPrimeiro ? 1 : 0, iniciaPrimeiro ? 0 : 1);
+    }
+
+    private void conferirInicio(String estado, int inicios, int cancelamentos) {
+        assertThat(db.sql("SELECT status FROM frete WHERE id = 910061").query(String.class).single()).isEqualTo(estado);
+        assertThat(db.sql("SELECT count(*) FROM historico_execucao_frete WHERE frete_id = 910061")
+                .query(Integer.class).single()).isEqualTo(inicios + cancelamentos);
+        assertThat(db.sql("""
+                SELECT count(*) FROM rf010_recibo_inicio r JOIN historico_execucao_frete h ON h.id = r.evento_id
+                WHERE r.frete_id = 910061 AND h.tipo_evento = 'INICIO' AND h.usuario_autor_id = 910003
+                """).query(Integer.class).single()).isEqualTo(inicios);
+        assertThat(db.sql("""
+                SELECT count(*) FROM historico_execucao_frete
+                WHERE frete_id = 910061 AND tipo_evento = 'CANCELAMENTO' AND usuario_autor_id = 910001
+                """).query(Integer.class).single()).isEqualTo(cancelamentos);
+        assertThat(db.sql("SELECT count(*) FROM notificacao WHERE frete_id = 910061")
+                .query(Integer.class).single()).isEqualTo(cancelamentos);
+    }
+
+    @Test
+    void ocorrenciasComMesmoConteudoDistinguemReenvioDeNovaConfirmacao() throws Exception {
+        var sessao = entrar("atual");
+        String rota = ROTA + "/ocorrencias";
+        String primeira = dados(UUID.randomUUID()).replace("justificativa", "descricao");
+        var resposta = enviarComando(rota, sessao, primeira, 200).getResponse().getContentAsString();
+        assertThat(enviarComando(rota, sessao, primeira, 200).getResponse().getContentAsString()).isEqualTo(resposta);
+        enviarComando(rota, sessao, primeira.replace("Via bloqueada", "Outro registro"), 409);
+        String nova = dados(UUID.randomUUID()).replace("justificativa", "descricao");
+        var segunda = enviarComando(rota, sessao, nova, 200).getResponse().getContentAsString();
+        assertThat(json.readTree(segunda).get("eventoId")).isNotEqualTo(json.readTree(resposta).get("eventoId"));
+        assertThat(db.sql("""
+                SELECT count(*) FROM rf010_recibo_ocorrencia r
+                JOIN historico_execucao_frete h ON h.id = r.evento_id
+                WHERE r.frete_id = 910063 AND h.tipo_evento = 'OCORRENCIA' AND h.descricao = 'Via bloqueada'
+                """).query(Integer.class).single()).isEqualTo(2);
+        mvc.perform(get(ROTA).session(sessao.session())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("EM_EXECUCAO"))
+                .andExpect(jsonPath("$.eventos[0].descricao").value("Via bloqueada"));
     }
 
     @Test
@@ -393,6 +553,113 @@ class TransicaoFreteIntegrationTest {
         conferirBanco(encerraPrimeiro ? "ENCERRADO_SEM_CONCLUSAO" : "EM_EXECUCAO", 1);
         conferirEncerramentos(encerraPrimeiro ? 1 : 0);
         conferirRetomadas(encerraPrimeiro ? 0 : 1);
+    }
+
+    @Test
+    void sessaoCsrfEAutorDoContrato() throws Exception {
+        var anonima = csrf(null);
+        for (String rota : java.util.List.of(INICIO, ROTA + "/ocorrencias", COMANDO, RETOMADA, ENCERRAMENTO)) {
+            enviarComando(rota, anonima, "{}", 401);
+            mvc.perform(post(rota).contentType("application/json").content("{}")).andExpect(status().isForbidden());
+            enviarComando(rota, new Sessao(anonima.session(), anonima.cabecalho(), "invalido"), "{}", 403);
+        }
+        var motorista = entrar("atual");
+        var dados = dados(UUID.randomUUID()).replace("}", ", \"autorId\":910002, \"papel\":\"PRESTADOR\"}");
+        var resposta = enviar(motorista, dados, 200);
+        var evento = json.readTree(resposta.getResponse().getContentAsString());
+        assertThat(evento.get("autorId").asLong()).isEqualTo(910003);
+        assertThat(db.sql("SELECT usuario_autor_id FROM historico_execucao_frete WHERE id = :id")
+                .param("id", evento.get("eventoId").asLong()).query(Long.class).single()).isEqualTo(910003);
+    }
+
+    private record ComandoTeste(String rota, String corpo) {}
+
+    private java.util.List<ComandoTeste> comandosDoCiclo() {
+        return java.util.List.of(
+                new ComandoTeste(ROTA + "/inicio", dadosInicio()),
+                new ComandoTeste(ROTA + "/ocorrencias", dados(UUID.randomUUID()).replace("justificativa", "descricao")),
+                new ComandoTeste(COMANDO, dados(UUID.randomUUID())),
+                new ComandoTeste(RETOMADA, dadosRetomada(UUID.randomUUID(), 910075, true)),
+                new ComandoTeste(ENCERRAMENTO, dadosEncerramento(UUID.randomUUID(), 910075, true, false)));
+    }
+
+    private void conferirSemEscrita(String estado, long eventos) {
+        assertThat(db.sql("SELECT status FROM frete WHERE id = 910063").query(String.class).single()).isEqualTo(estado);
+        assertThat(db.sql("SELECT count(*) FROM historico_execucao_frete WHERE frete_id = 910063")
+                .query(Long.class).single()).isEqualTo(eventos);
+        assertThat(db.sql("SELECT count(*) FROM notificacao WHERE frete_id = 910063").query(Long.class).single()).isZero();
+    }
+
+    @Test
+    void cadaRecusaPreservaEstadoEventosEAvisos() throws Exception {
+        var motorista = entrar("atual");
+        for (String estado : java.util.List.of("CANCELADO", "CONCLUIDO", "ENCERRADO_SEM_CONCLUSAO", "AGUARDANDO_DESIGNACAO")) {
+            db.sql("""
+                    UPDATE frete SET status = :estado, data_hora_conclusao = CURRENT_TIMESTAMP,
+                    responsavel_registro_conclusao_id = 910002 WHERE id = 910063
+                    """).param("estado", estado).update();
+            for (var cmd : comandosDoCiclo()) {
+                enviarComando(cmd.rota(), motorista, cmd.corpo(), 409);
+                conferirSemEscrita(estado, 2);
+            }
+        }
+        db.sql("UPDATE frete SET status = 'EM_EXECUCAO', data_hora_conclusao = NULL, responsavel_registro_conclusao_id = NULL WHERE id = 910063").update();
+        for (var cmd : comandosDoCiclo()) {
+            if (!cmd.rota().equals(RETOMADA) && !cmd.rota().equals(ENCERRAMENTO)) continue;
+            enviarComando(cmd.rota(), motorista, cmd.corpo(), 409);
+            conferirSemEscrita("EM_EXECUCAO", 2);
+        }
+        enviar(motorista, dados(UUID.randomUUID()), 200);
+        for (var cmd : comandosDoCiclo()) {
+            if (!cmd.rota().equals(RETOMADA) && !cmd.rota().equals(ENCERRAMENTO)) continue;
+            for (String invalido : java.util.List.of(cmd.corpo().replace("true", "null"),
+                    cmd.corpo().replace("Via liberada", " ").replace("Impossível prosseguir", " "))) {
+                enviarComando(cmd.rota(), motorista, invalido, 400);
+                conferirSemEscrita("INTERROMPIDO", 3);
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void falhaNoReciboReverteOcorrenciaOuEncerramento(boolean encerrar) throws Exception {
+        var motorista = entrar("atual");
+        if (encerrar) enviar(motorista, dados(UUID.randomUUID()), 200);
+        String tabela = encerrar ? "rf010_recibo_encerramento" : "rf010_recibo_ocorrencia";
+        String rota = encerrar ? ENCERRAMENTO : ROTA + "/ocorrencias";
+        String comando = encerrar ? dadosEncerramento(UUID.randomUUID(), 910075, true, false)
+                : dados(UUID.randomUUID()).replace("justificativa", "descricao");
+        db.sql("ALTER TABLE " + tabela + " ADD CONSTRAINT recusar_gravacao CHECK (false)").update();
+        try {
+            assertThatThrownBy(() -> enviarComando(rota, motorista, comando, 200))
+                    .hasRootCauseInstanceOf(org.postgresql.util.PSQLException.class).hasStackTraceContaining("recusar_gravacao");
+            conferirSemEscrita(encerrar ? "INTERROMPIDO" : "EM_EXECUCAO", encerrar ? 3 : 2);
+        } finally {
+            db.sql("ALTER TABLE " + tabela + " DROP CONSTRAINT recusar_gravacao").update();
+        }
+        var sucesso = enviarComando(rota, motorista, comando, 200).getResponse().getContentAsString();
+        assertThat(enviarComando(rota, motorista, comando, 200).getResponse().getContentAsString()).isEqualTo(sucesso);
+    }
+
+    @Test
+    void formulariosDeDuasInterrupcoesComMesmaDesignacao() throws Exception {
+        var motorista = entrar("atual");
+        var antigos = comandosDoCiclo();
+        enviar(motorista, dados(UUID.randomUUID()), 200);
+        retomar(motorista, dadosRetomada(UUID.randomUUID(), 910075, true), 200);
+        for (var cmd : antigos) {
+            if (cmd.rota().equals(COMANDO) || cmd.rota().endsWith("/ocorrencias")) {
+                enviarComando(cmd.rota(), motorista, cmd.corpo(), 409);
+                conferirSemEscrita("EM_EXECUCAO", 4);
+            }
+        }
+        enviar(motorista, dados(UUID.randomUUID()).replace("910073", "910076"), 200);
+        for (var cmd : antigos) {
+            if (cmd.rota().equals(RETOMADA) || cmd.rota().equals(ENCERRAMENTO)) {
+                enviarComando(cmd.rota(), motorista, cmd.corpo(), 409);
+                conferirSemEscrita("INTERROMPIDO", 5);
+            }
+        }
     }
 
     private void aguardarDisputaNoPostgres() {

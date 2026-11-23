@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ProviderLayout } from "../../components/layout/ProviderLayout";
 import { providerNavItems } from "../../components/layout/providerNav";
+import { focarAoMontar } from "./foco";
+import type { DadosFormulario } from "./FormularioExecucao";
 import { TransicaoFormulario } from "./TransicaoFormulario";
 import { type Acompanhamento, type AcaoExecucao, type AcaoTransicao, type TransicaoConfirmada, consultarExecucao } from "./api";
 
@@ -40,6 +42,7 @@ function AcompanhamentoDoFrete({ freteId }: { freteId: string }) {
   const [consulta, setConsulta] = useState<Consulta>({ tipo: "carregando" });
   const [tentativa, setTentativa] = useState(0);
   const [acao, setAcao] = useState<AcaoTransicao | null>(null);
+  const [rascunho, setRascunho] = useState<DadosFormulario>();
   const [recibo, setRecibo] = useState<TransicaoConfirmada | null>(null);
 
   function atualizar() {
@@ -70,7 +73,7 @@ function AcompanhamentoDoFrete({ freteId }: { freteId: string }) {
     return (
       <main className="space-y-3 p-6">
         {recibo && <p role="status">{mensagemRecibo(recibo)}</p>}
-        <p role="alert">{consulta.mensagem}</p>
+        <p tabIndex={-1} ref={focarAoMontar} role="alert">{consulta.mensagem}</p>
         <button type="button" className="rounded border px-3 py-2" onClick={atualizar}>
           Tentar novamente
         </button>
@@ -96,13 +99,20 @@ function AcompanhamentoDoFrete({ freteId }: { freteId: string }) {
       profileLabel={prestador ? undefined : "Motorista designado"}
     >
       {acao ? (
-        <TransicaoFormulario key={acao} acao={acao} contexto={dados} onAtualizar={atualizar} onVoltar={atualizar}
+        <TransicaoFormulario key={acao} acao={acao} contexto={dados} rascunho={rascunho?.acao === acao ? rascunho : undefined}
+          onAtualizar={(dados) => { setRascunho(dados); atualizar(); }}
+          onVoltar={() => { setRascunho(undefined); atualizar(); }}
           onConfirmada={(resultado) => {
+            setRascunho(undefined);
             setRecibo(resultado);
             atualizar();
           }} />
       ) : (
-        <ResumoExecucao dados={dados} recibo={recibo} onAcao={setAcao} />
+        <ResumoExecucao dados={dados} recibo={recibo} onAcao={(proxima) => {
+          if (rascunho?.acao !== proxima) setRascunho(undefined);
+          setRecibo(null);
+          setAcao(proxima);
+        }} />
       )}
     </ProviderLayout>
   );
@@ -117,7 +127,19 @@ function ResumoExecucao({ dados, recibo, onAcao }: {
     <>
       <h1 className="text-2xl font-bold">Acompanhamento da execução</h1>
       <p className="mt-2 text-[#637479]">FR-{dados.freteId} · {estados[dados.estado] ?? dados.estado}</p>
-      {recibo && <p role="status" className="mt-2 text-sm text-[#17695b]">{mensagemRecibo(recibo)}</p>}
+      {recibo && <p tabIndex={-1} ref={focarAoMontar} role="status" className="mt-2 text-sm text-[#17695b]">{mensagemRecibo(recibo)}</p>}
+      {dados.acoesElegiveis.includes("INICIO") && (
+        <button type="button" onClick={() => onAcao("INICIO")}
+          className="mt-4 rounded-lg bg-[#17695b] px-3 py-2 text-sm font-semibold text-white">
+          Iniciar execução
+        </button>
+      )}
+      {dados.acoesElegiveis.includes("OCORRENCIA") && (
+        <button type="button" onClick={() => onAcao("OCORRENCIA")}
+          className="mt-4 rounded-lg bg-[#17695b] px-3 py-2 text-sm font-semibold text-white">
+          Registrar ocorrência
+        </button>
+      )}
       {dados.acoesElegiveis.includes("INTERRUPCAO") && (
         <button type="button" onClick={() => onAcao("INTERRUPCAO")}
           className="mt-4 rounded-lg bg-[#17695b] px-3 py-2 text-sm font-semibold text-white">
@@ -167,15 +189,18 @@ function ResumoExecucao({ dados, recibo, onAcao }: {
 }
 
 function mensagemRecibo(recibo: TransicaoConfirmada) {
+  if (recibo.estadoAnterior === "PRONTO_INICIO") return "Execução iniciada.";
   switch (recibo.estadoResultante) {
     case "INTERROMPIDO": return "Interrupção registrada.";
-    case "EM_EXECUCAO": return "Retomada registrada.";
+    case "EM_EXECUCAO": return recibo.estadoAnterior === "EM_EXECUCAO" ? "Ocorrência registrada." : "Retomada registrada.";
     case "ENCERRADO_SEM_CONCLUSAO": return "Encerramento sem conclusão registrado.";
   }
 }
 
 const titulosFormulario: Record<AcaoTransicao, string> = {
-  INTERRUPCAO: "Registrar interrupção",
+  INICIO: "Iniciar execução",
+  OCORRENCIA: "Registrar ocorrência e interrupção",
+  INTERRUPCAO: "Registrar ocorrência e interrupção",
   RETOMADA: "Retomar execução",
   ENCERRAMENTO_SEM_CONCLUSAO: "Encerrar sem conclusão",
 };

@@ -55,21 +55,24 @@ export async function consultarExecucao(freteId: string, signal: AbortSignal): P
   }
 }
 
-export type AcaoTransicao = "INTERRUPCAO" | "RETOMADA" | "ENCERRAMENTO_SEM_CONCLUSAO";
+export type AcaoTransicao = "INICIO" | "OCORRENCIA" | "INTERRUPCAO" | "RETOMADA" | "ENCERRAMENTO_SEM_CONCLUSAO";
 
-export type ComandoTransicao = {
+export type ComandoInicio = {
   chaveOperacao: string;
   estadoEsperado: string;
   revisaoDesignacao: number;
-  justificativa: string;
+};
+
+export type ComandoTransicao = ComandoInicio & {
   data: string;
   horario: string;
-} & ({ cicloExecucaoId: number } | { interrupcaoId: number; confirmou: boolean; situacaoEncomenda?: string });
+} & ({ descricao: string } | { justificativa: string })
+  & ({ cicloExecucaoId: number } | { interrupcaoId: number; confirmou: boolean; situacaoEncomenda?: string });
 
 export type TransicaoConfirmada = {
   eventoId: number;
   autorId: number;
-  estadoAnterior: "EM_EXECUCAO" | "INTERROMPIDO";
+  estadoAnterior: "PRONTO_INICIO" | "EM_EXECUCAO" | "INTERROMPIDO";
   estadoResultante: "INTERROMPIDO" | "EM_EXECUCAO" | "ENCERRADO_SEM_CONCLUSAO";
 };
 
@@ -90,7 +93,7 @@ export class ErroTransicao extends Error {
 }
 
 export async function registrarTransicao(
-  freteId: number, acao: AcaoTransicao, comando: ComandoTransicao,
+  freteId: number, acao: AcaoTransicao, comando: ComandoTransicao | ComandoInicio,
 ): Promise<TransicaoConfirmada> {
   const signal = AbortSignal.timeout(15_000);
   const csrf = await fetch(`${API}/api/auth/csrf`, {
@@ -100,6 +103,8 @@ export async function registrarTransicao(
   const { headerName, token } = await csrf.json() as { headerName: string; token: string };
 
   const recursos: Record<AcaoTransicao, string> = {
+    INICIO: "inicio",
+    OCORRENCIA: "ocorrencias",
     INTERRUPCAO: "interrupcoes",
     RETOMADA: "retomadas",
     ENCERRAMENTO_SEM_CONCLUSAO: "encerramento-sem-conclusao",

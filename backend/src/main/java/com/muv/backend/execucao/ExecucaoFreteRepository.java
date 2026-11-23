@@ -58,10 +58,12 @@ public class ExecucaoFreteRepository {
     List<ExecucaoFreteService.Evento> consultarEventos(long freteId) {
         return db.sql("""
                 SELECT h.id, h.tipo_evento, autor.nome AS autor, h.descricao, h.justificativa,
-                       CASE WHEN ri.evento_id IS NOT NULL OR rr.evento_id IS NOT NULL
+                       CASE WHEN ini.evento_id IS NOT NULL OR ro.evento_id IS NOT NULL OR ri.evento_id IS NOT NULL OR rr.evento_id IS NOT NULL
                               OR re.evento_id IS NOT NULL THEN h.data_hora END AS registro_utc
                 FROM historico_execucao_frete h
                 JOIN usuario autor ON autor.id = h.usuario_autor_id
+                LEFT JOIN rf010_recibo_inicio ini ON ini.evento_id = h.id AND ini.frete_id = h.frete_id
+                LEFT JOIN rf010_recibo_ocorrencia ro ON ro.evento_id = h.id AND ro.frete_id = h.frete_id
                 LEFT JOIN rf010_recibo_interrupcao ri ON ri.evento_id = h.id AND ri.frete_id = h.frete_id
                 LEFT JOIN rf010_recibo_retomada rr ON rr.evento_id = h.id AND rr.frete_id = h.frete_id
                 LEFT JOIN rf010_recibo_encerramento re ON re.evento_id = h.id AND re.frete_id = h.frete_id
@@ -93,21 +95,28 @@ public class ExecucaoFreteRepository {
                 WHERE (tipo_evento IN ('INICIO', 'RETOMADA') AND :emExecucao)
                    OR (tipo_evento = 'INTERRUPCAO' AND NOT :emExecucao)
                 """)
-                .param("id", freteId).param("emExecucao", acao == Acao.INTERRUPCAO)
+                .param("id", freteId).param("emExecucao", acao.usaCicloExecucao())
                 .query(Long.class).optional();
     }
 
-    record Recibo(Acao acao, long eventoId, long autorId, String justificativa, Long referenciaId,
+    record Recibo(Acao acao, long eventoId, long autorId, String texto, Long referenciaId,
                   Long revisaoDesignacao, String estadoAnterior, String estadoResultante,
                   LocalDateTime dataHoraInformada, String situacaoEncomenda) {}
 
     Optional<Recibo> consultarRecibo(long freteId, UUID chave) {
         return db.sql("""
-                SELECT e.tipo_evento, r.evento_id, e.usuario_autor_id, e.justificativa, r.referencia_id,
+                SELECT e.tipo_evento, r.evento_id, e.usuario_autor_id, CASE WHEN e.tipo_evento = 'OCORRENCIA' THEN e.descricao ELSE e.justificativa END AS texto, r.referencia_id,
                        r.revisao_designacao, r.estado_anterior, r.estado_resultante, r.data_hora_informada, r.situacao_encomenda
                 FROM (
                     SELECT frete_id, evento_id, ciclo_execucao_id AS referencia_id, revisao_designacao,
                            estado_anterior, estado_resultante, data_hora_informada, CAST(NULL AS text) AS situacao_encomenda
+                    FROM rf010_recibo_ocorrencia WHERE frete_id = :freteId AND chave_operacao = :chave
+                    UNION ALL
+                    SELECT frete_id, evento_id, NULL, revisao_designacao, estado_anterior, estado_resultante, NULL, NULL
+                    FROM rf010_recibo_inicio WHERE frete_id = :freteId AND chave_operacao = :chave
+                    UNION ALL
+                    SELECT frete_id, evento_id, ciclo_execucao_id, revisao_designacao,
+                           estado_anterior, estado_resultante, data_hora_informada, CAST(NULL AS text)
                     FROM rf010_recibo_interrupcao WHERE frete_id = :freteId AND chave_operacao = :chave
                     UNION ALL
                     SELECT frete_id, evento_id, interrupcao_id, revisao_designacao,
@@ -122,7 +131,7 @@ public class ExecucaoFreteRepository {
                 """)
                 .param("freteId", freteId).param("chave", chave)
                 .query((rs, row) -> new Recibo(Acao.valueOf(rs.getString("tipo_evento")), rs.getLong("evento_id"),
-                        rs.getLong("usuario_autor_id"), rs.getString("justificativa"), rs.getLong("referencia_id"),
+                        rs.getLong("usuario_autor_id"), rs.getString("texto"), rs.getObject("referencia_id", Long.class),
                         rs.getLong("revisao_designacao"), rs.getString("estado_anterior"),
                         rs.getString("estado_resultante"), rs.getObject("data_hora_informada", LocalDateTime.class),
                         rs.getString("situacao_encomenda")))
@@ -137,29 +146,41 @@ public class ExecucaoFreteRepository {
                 .param("anterior", frete.estado()).param("resultante", estadoResultante).update() == 1;
     }
 
-    long gravarEvento(Frete frete, long autorId, Acao acao, String justificativa) {
+    long gravarEvento(Frete frete, long autorId, Acao acao, String texto) {
         return db.sql("""
                 INSERT INTO historico_execucao_frete
-                    (frete_id, usuario_autor_id, tipo_evento, justificativa, motorista_id, veiculo_id, data_hora)
-                VALUES (:freteId, :autorId, :tipo, :justificativa, :motoristaId, :veiculoId,
+                    (frete_id, usuario_autor_id, tipo_evento, descricao, justificativa, motorista_id, veiculo_id, data_hora)
+                VALUES (:freteId, :autorId, :tipo, :descricao, :justificativa, :motoristaId, :veiculoId,
                         timezone('UTC', clock_timestamp()))
                 RETURNING id
                 """)
                 .param("freteId", frete.id()).param("autorId", autorId).param("tipo", acao.name())
-                .param("justificativa", justificativa)
+                .param("descricao", acao == Acao.OCORRENCIA ? texto : null, java.sql.Types.VARCHAR)
+                .param("justificativa", acao == Acao.OCORRENCIA ? null : texto, java.sql.Types.VARCHAR)
                 .param("motoristaId", frete.motoristaId()).param("veiculoId", frete.veiculoId())
                 .query(Long.class).single();
     }
 
     void gravarRecibo(long freteId, Acao acao, UUID chave, long eventoId, Contexto contexto,
-                      long referencia, LocalDateTime dataHoraInformada, String situacaoEncomenda) {
+                      Long referencia, LocalDateTime dataHoraInformada, String situacaoEncomenda) {
+        if (acao == Acao.INICIO) {
+            db.sql("""
+                    INSERT INTO rf010_recibo_inicio
+                        (frete_id, chave_operacao, evento_id, revisao_designacao, estado_anterior, estado_resultante)
+                    VALUES (:frete, :chave, :evento, :revisao, :anterior, :resultante)
+                    """).param("frete", freteId).param("chave", chave).param("evento", eventoId)
+                    .param("revisao", contexto.revisaoDesignacao()).param("anterior", contexto.estado())
+                    .param("resultante", acao.estadoResultante()).update();
+            return;
+        }
         String tabela = switch (acao) {
+            case OCORRENCIA -> "rf010_recibo_ocorrencia";
             case INTERRUPCAO -> "rf010_recibo_interrupcao";
             case RETOMADA -> "rf010_recibo_retomada";
             case ENCERRAMENTO_SEM_CONCLUSAO -> "rf010_recibo_encerramento";
             default -> throw new IllegalArgumentException("Ação sem recibo disponível.");
         };
-        String colunaReferencia = acao == Acao.INTERRUPCAO ? "ciclo_execucao_id" : "interrupcao_id";
+        String colunaReferencia = acao.usaCicloExecucao() ? "ciclo_execucao_id" : "interrupcao_id";
         boolean encerramento = acao == Acao.ENCERRAMENTO_SEM_CONCLUSAO;
         var insert = db.sql("""
                 INSERT INTO %s

@@ -82,7 +82,7 @@ class RegrasExecucaoTest {
         var dataPassada = LocalDate.of(2000, 1, 1);
         var dataFutura = LocalDate.of(2099, 1, 1);
         var hora = LocalTime.NOON;
-        assertThat(dadosValidos(OCORRENCIA, "\u00a0\u2003", dataPassada, hora, false)).isFalse();
+        assertThat(dadosValidos(OCORRENCIA, "\u0085\u00a0\u2003", dataPassada, hora, false)).isFalse();
         assertThat(dadosValidos(INTERRUPCAO, "Motivo", dataFutura, null, false)).isFalse();
         assertThat(dadosValidos(RETOMADA, "Motivo", dataPassada, hora, false)).isFalse();
         assertThat(dadosValidos(ENCERRAMENTO_SEM_CONCLUSAO, "Motivo", dataFutura, hora, false)).isFalse();

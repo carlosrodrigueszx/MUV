@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Objects;
 
 public final class RegrasExecucao {
+    private static final java.util.regex.Pattern ESPACOS = java.util.regex.Pattern.compile("(?U)[\\s\\p{javaWhitespace}]*");
+
     private RegrasExecucao() {}
 
     public enum Acao {
@@ -22,6 +24,10 @@ public final class RegrasExecucao {
         Acao(String estadoAnterior, String estadoResultante) {
             this.estadoAnterior = estadoAnterior;
             this.estadoResultante = estadoResultante;
+        }
+
+        boolean usaCicloExecucao() {
+            return this == OCORRENCIA || this == INTERRUPCAO;
         }
 
         public String estadoResultante() {
@@ -80,7 +86,7 @@ public final class RegrasExecucao {
             Acao acao, String texto, LocalDate data, LocalTime horario, boolean confirmou) {
         if (acao == Acao.INICIO) return true;
         if (data == null || horario == null || texto == null
-                || texto.codePoints().allMatch(c -> Character.isWhitespace(c) || Character.isSpaceChar(c))) {
+                || ESPACOS.matcher(texto).matches()) {
             return false;
         }
         return (acao != Acao.RETOMADA && acao != Acao.ENCERRAMENTO_SEM_CONCLUSAO) || confirmou;
