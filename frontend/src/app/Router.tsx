@@ -7,6 +7,7 @@ import {
   RegisterPage,
   ResetPage,
 } from "../features/auth/AuthPages";
+import AcompanhamentoExecucaoPage from "../features/execucao/AcompanhamentoExecucaoPage";
 import FreightCancellationPage from "../features/freight-cancellation/FreightCancellationPage";
 import PaginaAvaliacao from "../features/propostas/Avaliacao";
 import Disponiveis from "../features/solicitacoes/Disponiveis";
@@ -34,6 +35,7 @@ export const Router: React.FC = () => {
         <Route path="/cadastro" element={<RegisterPage />} />
         <Route path="/recuperar-senha" element={<RecoveryPage />} />
         <Route path="/redefinir-senha" element={<ResetPage />} />
+        <Route path="/fretes/:freteId/execucao" element={<AcompanhamentoExecucaoPage />} />
         <Route path="/fretes/:freteId/cancelar" element={<FreightCancellationPage />} />
         <Route path="/conta" element={<AccountPage />} />
         <Route path="/prestador/solicitacoes/:id/avaliacao" element={<PaginaAvaliacao />} />

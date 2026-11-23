@@ -1,0 +1,511 @@
+package com.muv.backend.execucao;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.ObjectMapper;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("rf010-test")
+@Sql(scripts = "/db/rf010-consulta.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
+class TransicaoFreteIntegrationTest {
+    private static final String SCHEMA = "rf010_interrupcao_" + UUID.randomUUID().toString().replace("-", "");
+    private static final String ROTA = "/api/fretes/910063/execucao";
+    private static final String COMANDO = ROTA + "/interrupcoes";
+    private static final String RETOMADA = ROTA + "/retomadas";
+    private static final String ENCERRAMENTO = ROTA + "/encerramento-sem-conclusao";
+
+    @DynamicPropertySource
+    static void esquemaIsolado(DynamicPropertyRegistry properties) {
+        properties.add("spring.flyway.schemas", () -> SCHEMA);
+        properties.add("spring.flyway.default-schema", () -> SCHEMA);
+        properties.add("spring.datasource.hikari.connection-init-sql", () -> "SET search_path TO " + SCHEMA);
+    }
+
+    @Autowired MockMvc mvc;
+    @Autowired JdbcClient db;
+    @Autowired PasswordEncoder senhas;
+    @Autowired ObjectMapper json;
+    @Autowired PlatformTransactionManager transacoes;
+
+    @BeforeEach
+    void restaurarFreteEmExecucao() {
+        db.sql("DELETE FROM rf010_recibo_encerramento WHERE frete_id = 910063").update();
+        db.sql("DELETE FROM rf010_recibo_retomada WHERE frete_id = 910063").update();
+        db.sql("DELETE FROM rf010_recibo_interrupcao WHERE frete_id = 910063").update();
+        db.sql("DELETE FROM historico_execucao_frete WHERE frete_id = 910063 AND id > 910074").update();
+        db.sql("ALTER SEQUENCE historico_execucao_frete_id_seq RESTART WITH 910075").update();
+        db.sql("""
+                UPDATE frete SET status = 'EM_EXECUCAO', motorista_atual_id = 910011, revisao_designacao = 1
+                WHERE id = 910063
+                """).update();
+    }
+
+    @Test
+    void motoristaConfirmaERecuperaARespostaDepoisDoCommit() throws Exception {
+        Sessao sessao = entrar("atual");
+        String comando = dados(UUID.randomUUID());
+        var primeira = enviar(sessao, comando, 200);
+        var repetida = enviar(sessao, comando, 200);
+        assertThat(repetida.getResponse().getContentAsString())
+                .isEqualTo(primeira.getResponse().getContentAsString());
+        var resultado = json.readTree(repetida.getResponse().getContentAsString());
+        assertThat(resultado.get("eventoId").asLong()).isEqualTo(910075L);
+        assertThat(resultado.get("autorId").asLong()).isEqualTo(910003L);
+        assertThat(resultado.get("estadoAnterior").asString()).isEqualTo("EM_EXECUCAO");
+        assertThat(resultado.get("estadoResultante").asString()).isEqualTo("INTERROMPIDO");
+        conferirBanco("INTERROMPIDO", 1);
+        assertThat(db.sql("""
+                SELECT data_hora_informada FROM rf010_recibo_interrupcao WHERE evento_id = 910075
+                """).query(LocalDateTime.class).single()).isEqualTo(LocalDateTime.of(2000, 1, 2, 9, 15));
+        assertThat(db.sql("""
+                SELECT data_hora BETWEEN timezone('UTC', clock_timestamp()) - interval '1 minute'
+                                     AND timezone('UTC', clock_timestamp())
+                FROM historico_execucao_frete WHERE id = 910075
+                """).query(Boolean.class).single()).isTrue();
+        mvc.perform(get(ROTA).session(sessao.session())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("INTERROMPIDO"))
+                .andExpect(jsonPath("$.interrupcaoId").value(910075))
+                .andExpect(jsonPath("$.eventos[0].justificativa").value("Via bloqueada"))
+                .andExpect(jsonPath("$.eventos[0].autor").value("Motorista Atual"));
+    }
+
+    @Test
+    void prestadorPodeConfirmarEChaveUsadaOuNovaTentativaGeramConflito() throws Exception {
+        Sessao prestador = entrar("empresa");
+        String comando = dados(UUID.randomUUID());
+        var resposta = enviar(prestador, comando, 200);
+        assertThat(json.readTree(resposta.getResponse().getContentAsString()).get("autorId").asLong())
+                .isEqualTo(910002);
+        enviar(prestador, comando.replace("Via bloqueada", "Outra justificativa"), 409);
+        enviar(entrar("atual"), comando, 409);
+        enviar(prestador, dados(UUID.randomUUID()), 409);
+        conferirBanco("INTERROMPIDO", 1);
+        assertThat(db.sql("""
+                SELECT motorista_atual_id = 910011 AND veiculo_atual_id = 910022 AND revisao_designacao = 1
+                FROM frete WHERE id = 910063
+                """).query(Boolean.class).single()).isTrue();
+    }
+
+    @Test
+    void duasConfirmacoesConcorrentesComChavesDistintasTemUmVencedor() throws Exception {
+        concorrer(false);
+    }
+
+    @Test
+    void confirmacaoConcorrenteComMesmaChaveRecuperaMesmoResultado() throws Exception {
+        concorrer(true);
+    }
+
+    private void concorrer(boolean mesmaChave) throws Exception {
+        Sessao atual = entrar("atual");
+        Sessao outraSessao = entrar(mesmaChave ? "atual" : "empresa");
+        String primeiro = dados(UUID.randomUUID());
+        String segundo = mesmaChave ? primeiro : dados(UUID.randomUUID());
+        var prontos = new CountDownLatch(2);
+        var largada = new CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var a = pool.submit(() -> enviarConcorrente(atual, primeiro, prontos, largada));
+            var b = pool.submit(() -> enviarConcorrente(outraSessao, segundo, prontos, largada));
+            assertThat(prontos.await(5, TimeUnit.SECONDS)).isTrue();
+            largada.countDown();
+            var respostaA = a.get(10, TimeUnit.SECONDS).getResponse();
+            var respostaB = b.get(10, TimeUnit.SECONDS).getResponse();
+            if (mesmaChave) {
+                assertThat(respostaA.getStatus()).isEqualTo(200);
+                assertThat(respostaB.getStatus()).isEqualTo(200);
+                assertThat(respostaB.getContentAsString()).isEqualTo(respostaA.getContentAsString());
+            } else {
+                assertThat(new Integer[]{respostaA.getStatus(), respostaB.getStatus()})
+                        .containsExactlyInAnyOrder(200, 409);
+            }
+        }
+        conferirBanco("INTERROMPIDO", 1);
+    }
+
+    @Test
+    void rejeitaColegaERevalidaAutorizacaoAposSubstituicaoAteNoReenvio() throws Exception {
+        Sessao original = entrar("atual");
+        String comando = dados(UUID.randomUUID());
+        enviar(entrar("colega"), comando.replace("}", ", \"autorId\": 910003}"), 403);
+        conferirBanco("EM_EXECUCAO", 0);
+        enviar(original, comando, 200);
+        db.sql("UPDATE frete SET motorista_atual_id = 910012, revisao_designacao = 2 WHERE id = 910063").update();
+        enviar(original, comando, 403);
+        enviar(original, dados(UUID.randomUUID()), 403);
+        conferirBanco("INTERROMPIDO", 1);
+    }
+
+    @Test
+    void formularioDeCicloAnteriorFalhaMasReenvioOriginalContinuaValidoAposRetomada() throws Exception {
+        Sessao atual = entrar("atual");
+        String original = dados(UUID.randomUUID());
+        var resposta = enviar(atual, original, 200);
+        retomar(atual, dadosRetomada(UUID.randomUUID(), 910075, true), 200);
+        enviar(atual, dados(UUID.randomUUID()), 409);
+        assertThat(enviar(atual, original, 200).getResponse().getContentAsString())
+                .isEqualTo(resposta.getResponse().getContentAsString());
+        conferirBanco("EM_EXECUCAO", 1);
+    }
+
+    @Test
+    void falhaDoReciboReverteEstadoEEventoEPermiteReenvio() throws Exception {
+        Sessao atual = entrar("atual");
+        String comando = dados(UUID.randomUUID());
+        db.sql("ALTER TABLE rf010_recibo_interrupcao ADD CONSTRAINT recusar_teste CHECK (false)").update();
+        try {
+            assertThatThrownBy(() -> enviar(atual, comando, 200))
+                    .hasRootCauseInstanceOf(org.postgresql.util.PSQLException.class)
+                    .hasCauseInstanceOf(DataIntegrityViolationException.class)
+                    .hasStackTraceContaining("recusar_teste");
+            conferirBanco("EM_EXECUCAO", 0);
+        } finally {
+            db.sql("ALTER TABLE rf010_recibo_interrupcao DROP CONSTRAINT recusar_teste").update();
+        }
+        enviar(atual, comando, 200);
+        conferirBanco("INTERROMPIDO", 1);
+    }
+
+    @Test
+    void exigeSessaoCsrfEJustificativa() throws Exception {
+        String comando = dados(UUID.randomUUID());
+        Sessao anonima = csrf(null);
+        enviar(anonima, comando, 401);
+        Sessao sessao = entrar("atual");
+        mvc.perform(post(COMANDO).session(sessao.session()).contentType("application/json").content(comando))
+                .andExpect(status().isForbidden());
+        enviar(new Sessao(sessao.session(), sessao.cabecalho(), "csrf-invalido"), comando, 403);
+        enviar(sessao, comando.replace("Via bloqueada", "\u00a0\u2003"), 400);
+        enviar(sessao, comando.replace("09:15", "25:48"), 400);
+        conferirBanco("EM_EXECUCAO", 0);
+    }
+
+    @Test
+    void retomadaPeloPrestadorGravaVinculoEReenvioRetornaMesmoEvento() throws Exception {
+        var motorista = entrar("atual");
+        var prestador = entrar("empresa");
+        enviar(motorista, dados(UUID.randomUUID()), 200);
+        String comando = dadosRetomada(UUID.randomUUID(), 910075, true);
+        var primeira = retomar(prestador, comando, 200);
+        var reenvio = retomar(prestador, comando, 200);
+        assertThat(reenvio.getResponse().getContentAsString()).isEqualTo(primeira.getResponse().getContentAsString());
+        var resultado = json.readTree(reenvio.getResponse().getContentAsString());
+        assertThat(resultado.get("eventoId").asLong()).isEqualTo(910076);
+        assertThat(resultado.get("autorId").asLong()).isEqualTo(910002);
+        assertThat(resultado.get("estadoResultante").asString()).isEqualTo("EM_EXECUCAO");
+        assertThat(db.sql("""
+                SELECT r.interrupcao_id = i.id AND i.tipo_evento = 'INTERRUPCAO'
+                    AND i.justificativa = 'Via bloqueada' AND i.usuario_autor_id = 910003
+                    AND e.usuario_autor_id = 910002 AND e.tipo_evento = 'RETOMADA'
+                    AND e.justificativa = 'Via liberada'
+                    AND e.data_hora >= i.data_hora
+                    AND r.data_hora_informada = timestamp '2000-01-02 09:45'
+                FROM rf010_recibo_retomada r
+                JOIN historico_execucao_frete i ON i.id = r.interrupcao_id AND i.frete_id = r.frete_id
+                JOIN historico_execucao_frete e ON e.id = r.evento_id AND e.frete_id = r.frete_id
+                WHERE r.frete_id = 910063
+                """).query(Boolean.class).single()).isTrue();
+        retomar(prestador, comando.replace("Via liberada", "Outro motivo"), 409);
+        retomar(motorista, comando, 409);
+        retomar(prestador, dadosRetomada(UUID.randomUUID(), 910075, true), 409);
+        mvc.perform(get(ROTA).session(motorista.session())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("EM_EXECUCAO"))
+                .andExpect(jsonPath("$.cicloExecucaoId").value(910076))
+                .andExpect(jsonPath("$.eventos[1].horarioRegistro").isString());
+        conferirBanco("EM_EXECUCAO", 1);
+        conferirRetomadas(1);
+    }
+
+    @Test
+    void validaConfirmacaoReferenciaRecursosEAutorizacaoNoMomentoDaRetomada() throws Exception {
+        Sessao atual = entrar("atual");
+        Sessao colega = entrar("colega");
+        UUID chaveInterrupcao = UUID.randomUUID();
+        enviar(atual, dados(chaveInterrupcao), 200);
+        String valido = dadosRetomada(UUID.randomUUID(), 910075, true);
+        retomar(entrar("externo"), valido, 403);
+        retomar(colega, valido, 403);
+        retomar(atual, dadosRetomada(chaveInterrupcao, 910075, true), 409);
+        retomar(atual, dadosRetomada(UUID.randomUUID(), 910072, true), 409);
+        retomar(atual, valido.replace("true", "false"), 400);
+        retomar(atual, valido.replace("Via liberada", " "), 400);
+        retomar(atual, valido.replace("09:45", "29:45"), 400);
+        retomar(atual, valido.replace("2000-01-02", "2000-02-31"), 400);
+        mvc.perform(post(RETOMADA).session(atual.session()).contentType("application/json").content(valido))
+                .andExpect(status().isForbidden());
+        db.sql("UPDATE veiculo SET ativo = false WHERE id = 910022").update();
+        retomar(atual, valido, 409);
+        conferirBanco("INTERROMPIDO", 1);
+        conferirRetomadas(0);
+        db.sql("UPDATE veiculo SET ativo = true WHERE id = 910022").update();
+        db.sql("UPDATE frete SET motorista_atual_id = 910012, revisao_designacao = 2 WHERE id = 910063").update();
+        retomar(atual, valido, 403);
+        retomar(colega, valido, 409);
+        retomar(colega, valido.replace("\"revisaoDesignacao\":1", "\"revisaoDesignacao\":2"), 200);
+        conferirBanco("EM_EXECUCAO", 1);
+        conferirRetomadas(1);
+    }
+
+    @Test
+    void falhaNoReciboDeRetomadaMantemAInterrupcaoEPermiteReenvio() throws Exception {
+        Sessao motorista = entrar("atual");
+        enviar(motorista, dados(UUID.randomUUID()), 200);
+        String comando = dadosRetomada(UUID.randomUUID(), 910075, true);
+        db.sql("ALTER TABLE rf010_recibo_retomada ADD CONSTRAINT recusar_retomada_teste CHECK (false)").update();
+        try {
+            assertThatThrownBy(() -> retomar(motorista, comando, 200))
+                    .hasCauseInstanceOf(DataIntegrityViolationException.class)
+                    .hasStackTraceContaining("recusar_retomada_teste");
+            conferirBanco("INTERROMPIDO", 1);
+            conferirRetomadas(0);
+        } finally {
+            db.sql("ALTER TABLE rf010_recibo_retomada DROP CONSTRAINT recusar_retomada_teste").update();
+        }
+        retomar(motorista, comando, 200);
+        conferirBanco("EM_EXECUCAO", 1);
+        conferirRetomadas(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"empresa", "atual"})
+    void encerraSemCancelarNemConcluirEReenvioConservaEvento(String perfil) throws Exception {
+        Sessao motorista = entrar("atual");
+        enviar(motorista, dados(UUID.randomUUID()), 200);
+        Sessao autor = perfil.equals("atual") ? motorista : entrar(perfil);
+        String dados = dadosEncerramento(UUID.randomUUID(), 910075, true, true);
+        var original = enviarComando(ENCERRAMENTO, autor, dados, 200).getResponse().getContentAsString();
+        var repeticao = enviarComando(ENCERRAMENTO, autor, dados, 200).getResponse().getContentAsString();
+        assertThat(repeticao).isEqualTo(original);
+        long autorId = perfil.equals("atual") ? 910003 : 910002;
+        assertThat(json.readTree(repeticao).get("autorId").asLong()).isEqualTo(autorId);
+        assertThat(json.readTree(repeticao).get("eventoId").asLong()).isEqualTo(910076);
+        assertThat(json.readTree(repeticao).get("estadoResultante").asString())
+                .isEqualTo("ENCERRADO_SEM_CONCLUSAO");
+        enviarComando(ENCERRAMENTO, autor, dados.replace("No veículo", "No depósito"), 409);
+        conferirBanco("ENCERRADO_SEM_CONCLUSAO", 1);
+        conferirEncerramentos(1);
+        assertThat(db.sql("""
+                SELECT r.interrupcao_id = 910075 AND r.evento_id = 910076
+                    AND i.tipo_evento = 'INTERRUPCAO' AND i.justificativa = 'Via bloqueada'
+                    AND e.usuario_autor_id = :autor AND e.tipo_evento = 'ENCERRAMENTO_SEM_CONCLUSAO'
+                    AND e.justificativa = 'Impossível prosseguir' AND e.descricao IS NULL
+                    AND r.situacao_encomenda = 'No veículo'
+                    AND r.data_hora_informada = timestamp '2000-01-02 09:55'
+                    AND e.data_hora >= i.data_hora
+                FROM rf010_recibo_encerramento r
+                JOIN historico_execucao_frete i ON i.id = r.interrupcao_id AND i.frete_id = r.frete_id
+                JOIN historico_execucao_frete e ON e.id = r.evento_id AND e.frete_id = r.frete_id
+                WHERE r.frete_id = 910063
+                """).param("autor", autorId).query(Boolean.class).single()).isTrue();
+        assertThat(db.sql("""
+                SELECT data_hora_conclusao IS NULL AND responsavel_registro_conclusao_id IS NULL
+                      AND nome_destinatario IS NULL AND cpf_destinatario IS NULL
+                      AND valor_atual = 100 AND condicoes_atuais = 'Encomenda'
+                FROM frete WHERE id = 910063
+                """).query(Boolean.class).single()).isTrue();
+        assertThat(db.sql("""
+                SELECT count(*) FROM historico_execucao_frete WHERE frete_id = 910063
+                    AND tipo_evento IN ('CONCLUSAO', 'CANCELAMENTO')
+                """).query(Long.class).single()).isZero();
+        var consulta = mvc.perform(get(ROTA).session(autor.session())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("ENCERRADO_SEM_CONCLUSAO"))
+                .andExpect(jsonPath("$.eventos[0].tipo").value("ENCERRAMENTO_SEM_CONCLUSAO"))
+                .andExpect(jsonPath("$.acoesElegiveis").isEmpty()).andReturn();
+        assertThat(consulta.getResponse().getContentAsString()).doesNotContain("No veículo");
+        var historico = mvc.perform(get("/api/historico-fretes").session(entrar("cliente").session())
+                        .param("perfil", "CLIENTE"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(historico).contains("Encerrado sem conclusão", "Impossível prosseguir")
+                .doesNotContain("No veículo", "Por Motorista Atual. No veículo");
+    }
+
+    @Test
+    void exigeInterrupcaoConfirmacaoEAutorizacaoParaEncerrar() throws Exception {
+        Sessao motorista = entrar("atual");
+        String dados = dadosEncerramento(UUID.randomUUID(), 910075, true, false);
+        enviarComando(ENCERRAMENTO, motorista, dados, 409);
+        enviar(motorista, dados(UUID.randomUUID()), 200);
+        enviarComando(ENCERRAMENTO, entrar("colega"), dados, 403);
+        enviarComando(ENCERRAMENTO, csrf(null), dados, 401);
+        mvc.perform(post(ENCERRAMENTO).session(motorista.session()).contentType("application/json").content(dados))
+                .andExpect(status().isForbidden());
+        enviarComando(ENCERRAMENTO, motorista, dados.replace("true", "false"), 400);
+        enviarComando(ENCERRAMENTO, motorista, dados.replace("09:55", "28:00"), 400);
+        enviarComando(ENCERRAMENTO, motorista, dados.replace("Impossível prosseguir", " "), 400);
+        enviarComando(ENCERRAMENTO, motorista, dados.replace("910075", "910072"), 409);
+        conferirBanco("INTERROMPIDO", 1);
+        conferirEncerramentos(0);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void retomadaEEncerramentoConcorrentesGravamSomenteOVencedor(boolean encerraPrimeiro) throws Exception {
+        Sessao motorista = entrar("atual");
+        Sessao prestador = entrar("empresa");
+        enviar(motorista, dados(UUID.randomUUID()), 200);
+        String retomar = dadosRetomada(UUID.randomUUID(), 910075, true);
+        String encerrar = dadosEncerramento(UUID.randomUUID(), 910075, true, false);
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var perdedora = new TransactionTemplate(transacoes).execute(ignorado -> {
+                db.sql("SELECT id FROM frete WHERE id = 910063 FOR UPDATE").query(Long.class).single();
+                var fila = executor.submit(() -> enviarComando(encerraPrimeiro ? RETOMADA : ENCERRAMENTO,
+                        prestador, encerraPrimeiro ? retomar : encerrar, 409));
+                aguardarDisputaNoPostgres();
+                try {
+                    enviarComando(encerraPrimeiro ? ENCERRAMENTO : RETOMADA,
+                            motorista, encerraPrimeiro ? encerrar : retomar, 200);
+                } catch (Exception erro) {
+                    throw new AssertionError(erro);
+                }
+                return fila;
+            });
+            assertThat(perdedora.get(10, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(409);
+        }
+        conferirBanco(encerraPrimeiro ? "ENCERRADO_SEM_CONCLUSAO" : "EM_EXECUCAO", 1);
+        conferirEncerramentos(encerraPrimeiro ? 1 : 0);
+        conferirRetomadas(encerraPrimeiro ? 0 : 1);
+    }
+
+    private void aguardarDisputaNoPostgres() {
+        long limite = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        while (System.nanoTime() < limite) {
+            if (db.sql("""
+                    SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE pg_backend_pid() = ANY(pg_blocking_pids(pid)))
+                    """).query(Boolean.class).single()) return;
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException erro) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(erro);
+            }
+        }
+        throw new AssertionError("A segunda tentativa não aguardou o bloqueio do frete.");
+    }
+
+    private void conferirEncerramentos(long quantidade) {
+        assertThat(db.sql("""
+                SELECT count(*) FROM historico_execucao_frete
+                WHERE frete_id = 910063 AND tipo_evento = 'ENCERRAMENTO_SEM_CONCLUSAO'
+                """).query(Long.class).single()).isEqualTo(quantidade);
+        assertThat(db.sql("SELECT count(*) FROM rf010_recibo_encerramento WHERE frete_id = 910063")
+                .query(Long.class).single()).isEqualTo(quantidade);
+    }
+
+    private static String dadosEncerramento(UUID chave, long interrupcaoId, boolean confirmou, boolean comSituacao) {
+        return """
+                {"chaveOperacao":"%s","estadoEsperado":"INTERROMPIDO","revisaoDesignacao":1,
+                 "interrupcaoId":%d,"justificativa":"Impossível prosseguir","data":"2000-01-02",
+                 "horario":"09:55","confirmou":%s%s}
+                """.formatted(chave, interrupcaoId, confirmou, comSituacao ? ", \"situacaoEncomenda\": \"No veículo\"" : "");
+    }
+
+    private MvcResult enviarComando(String rota, Sessao sessao, String dados, int status) throws Exception {
+        return mvc.perform(post(rota).session(sessao.session()).header(sessao.cabecalho(), sessao.token())
+                .contentType("application/json").content(dados))
+                .andExpect(status().is(status)).andReturn();
+    }
+
+    private void conferirRetomadas(long quantidade) {
+        assertThat(db.sql("""
+                SELECT count(*) FROM historico_execucao_frete WHERE frete_id = 910063 AND tipo_evento = 'RETOMADA'
+                """).query(Long.class).single()).isEqualTo(quantidade);
+        assertThat(db.sql("SELECT count(*) FROM rf010_recibo_retomada WHERE frete_id = 910063")
+                .query(Long.class).single()).isEqualTo(quantidade);
+    }
+
+    private static String dadosRetomada(UUID chave, long interrupcaoId, boolean confirmou) {
+        return """
+                {"chaveOperacao":"%s","estadoEsperado":"INTERROMPIDO","revisaoDesignacao":1,
+                 "interrupcaoId":%d,"justificativa":"Via liberada","data":"2000-01-02","horario":"09:45","confirmou":%s}
+                """.formatted(chave, interrupcaoId, confirmou);
+    }
+
+    private MvcResult retomar(Sessao sessao, String dados, int status) throws Exception {
+        return enviarComando(RETOMADA, sessao, dados, status);
+    }
+
+    private void conferirBanco(String estado, long quantidade) {
+        assertThat(db.sql("SELECT status FROM frete WHERE id = 910063").query(String.class).single())
+                .isEqualTo(estado);
+        assertThat(db.sql("""
+                SELECT count(*) FROM historico_execucao_frete WHERE frete_id = 910063 AND tipo_evento = 'INTERRUPCAO'
+                """).query(Long.class).single()).isEqualTo(quantidade);
+        assertThat(db.sql("SELECT count(*) FROM rf010_recibo_interrupcao WHERE frete_id = 910063")
+                .query(Long.class).single()).isEqualTo(quantidade);
+        assertThat(db.sql("SELECT count(*) FROM notificacao").query(Long.class).single()).isZero();
+    }
+
+    private static String dados(UUID chave) {
+        return """
+                {"chaveOperacao":"%s","estadoEsperado":"EM_EXECUCAO","revisaoDesignacao":1,
+                 "cicloExecucaoId":910073,"justificativa":"Via bloqueada","data":"2000-01-02","horario":"09:15"}
+                """.formatted(chave);
+    }
+
+    private MvcResult enviar(Sessao sessao, String dados, int status) throws Exception {
+        return enviar(sessao, dados).andExpect(status().is(status)).andReturn();
+    }
+
+    private MvcResult enviarConcorrente(Sessao sessao, String dados, CountDownLatch prontos,
+                                         CountDownLatch largada) throws Exception {
+        prontos.countDown();
+        if (!largada.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Teste não iniciou");
+        return enviar(sessao, dados).andReturn();
+    }
+
+    private org.springframework.test.web.servlet.ResultActions enviar(Sessao sessao, String dados) throws Exception {
+        return mvc.perform(post(COMANDO).session(sessao.session()).header(sessao.cabecalho(), sessao.token())
+                .contentType("application/json").content(dados));
+    }
+
+    private record Sessao(MockHttpSession session, String cabecalho, String token) {}
+
+    private Sessao entrar(String conta) throws Exception {
+        String email = conta + "910@example.test";
+        db.sql("UPDATE usuario SET senha = :senha WHERE email = :email")
+                .param("senha", senhas.encode("Teste_RF010#")).param("email", email).update();
+        var csrf = csrf(null);
+        var login = mvc.perform(post("/api/auth/login").session(csrf.session())
+                        .header(csrf.cabecalho(), csrf.token()).param("email", email).param("senha", "Teste_RF010#"))
+                .andExpect(status().isNoContent()).andReturn();
+        return csrf((MockHttpSession) login.getRequest().getSession(false));
+    }
+
+    private Sessao csrf(MockHttpSession session) throws Exception {
+        var req = get("/api/auth/csrf");
+        if (session != null) req.session(session);
+        var resposta = mvc.perform(req).andExpect(status().isOk()).andReturn();
+        var token = json.readTree(resposta.getResponse().getContentAsString());
+        return new Sessao((MockHttpSession) resposta.getRequest().getSession(false),
+                token.get("headerName").asString(), token.get("token").asString());
+    }
+}
