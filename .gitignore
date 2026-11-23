@@ -127,6 +127,7 @@ dist
 
 # pnpm
 .pnpm-store
+openspec/
 
 # yarn v3
 .pnp.*
