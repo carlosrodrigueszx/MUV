@@ -22,7 +22,7 @@ class PropostaServiceTest {
 
     void preparar(String status, boolean bloquear, BigDecimal preco) {
         var detalhe = new AvaliacaoSolicitacao(9, "PESSOA", status, "Cliente", null, "A", "B", 3,
-                null,null,null,null,null,preco,"Pedágios inclusos",null,List.of(),null,null,null,null);
+                null,null,null,null,null,preco,"Pedágios inclusos",null,List.of(),null,null,null,null,false);
         when(repo.consultar(9,4,bloquear)).thenReturn(Optional.of(new PropostaRepository.Contexto(detalhe,18)));
     }
 

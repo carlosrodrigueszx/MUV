@@ -15,6 +15,7 @@ export type Avaliacao = {
   valorCliente: number | null;
   condicoesCliente: string | null;
   justificativaRecusa: string | null;
+  propostaEnviada: boolean;
   mapaCaminho: string | null;
   percursoKm: number | null;
   deslocamentoMinutos: number | null;
@@ -38,6 +39,8 @@ function base(id: string) {
   return "/api/prestador/solicitacoes/" + encodeURIComponent(id);
 }
 
+export class ConflitoProposta extends Error {}
+
 async function conferir(res: Response) {
   if (res.ok) return;
   const mensagens: Record<number, string> = {
@@ -47,6 +50,7 @@ async function conferir(res: Response) {
     404: "Solicitação indisponível.",
     409: "A solicitação foi encerrada ou a oferta mudou. Atualize a avaliação.",
   };
+  if (res.status === 409) throw new ConflitoProposta(mensagens[409]);
   throw new Error(
     mensagens[res.status] ??
       "Não foi possível acessar a solicitação. Tente novamente.",
@@ -55,7 +59,7 @@ async function conferir(res: Response) {
 
 export async function avaliar(
   id: string,
-  signal: AbortSignal,
+  signal?: AbortSignal,
 ): Promise<Avaliacao> {
   const res = await fetch(base(id) + "/avaliacao", {
     signal,

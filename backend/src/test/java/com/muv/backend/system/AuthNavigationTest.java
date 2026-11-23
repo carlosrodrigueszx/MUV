@@ -45,7 +45,7 @@ class AuthNavigationTest {
             wait.until(ExpectedConditions.urlToBe(planner));
             wait.until(ExpectedConditions.visibilityOfElementLocated(
                     By.xpath("//h2[normalize-space()='Defina seu roteiro']")));
-            wait.until(ExpectedConditions.elementToBeClickable(By.linkText("Minha conta"))).click();
+            wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("a[aria-label='Minha conta']"))).click();
             wait.until(ExpectedConditions.urlToBe(base + "/conta"));
             wait.until(ExpectedConditions.elementToBeClickable(
                     By.xpath("//button[normalize-space()='Sair']"))).click();

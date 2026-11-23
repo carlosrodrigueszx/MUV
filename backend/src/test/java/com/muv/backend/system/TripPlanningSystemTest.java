@@ -115,7 +115,7 @@ class TripPlanningSystemTest {
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("embarque")));
         assertEquals("Fortaleza", fieldValue("embarque"));
         assertEquals("16:00", fieldValue("horaRetorno"));
-        assertEquals("250.50", fieldValue("valor"));
+        assertEquals("250,50", fieldValue("valor"));
         assertEquals("Inclui pedágios", fieldValue("condicoes"));
         assertEquals(2, driver.findElements(By.name("parada")).size());
 
@@ -175,7 +175,7 @@ class TripPlanningSystemTest {
     void movesTheActiveNavigationIndicatorBetweenPlannerAndProviders() {
         var planner = By.cssSelector("nav a[aria-current='page']");
         assertEquals("Planejar viagem", driver.findElement(planner).getText());
-        assertEquals("#176457", Color.fromString(driver.findElement(planner).getCssValue("border-bottom-color")).asHex());
+        assertEquals("#007464", Color.fromString(driver.findElement(planner).getCssValue("border-bottom-color")).asHex());
 
         fillTrip(12);
         clickButton("Consultar prestadores");
@@ -188,7 +188,7 @@ class TripPlanningSystemTest {
 
         wait.until(ExpectedConditions.elementToBeClickable(By.linkText("Editar itinerário"))).click();
         wait.until(ExpectedConditions.textToBePresentInElementLocated(planner, "Planejar viagem"));
-        assertEquals("#176457", Color.fromString(driver.findElement(planner).getCssValue("border-bottom-color")).asHex());
+        assertEquals("#007464", Color.fromString(driver.findElement(planner).getCssValue("border-bottom-color")).asHex());
     }
 
     private void assertPageFitsViewport() {
