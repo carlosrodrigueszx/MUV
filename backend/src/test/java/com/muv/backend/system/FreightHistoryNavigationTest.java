@@ -4,6 +4,7 @@ import com.muv.backend.config.SeleniumConfig;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.By;
+import org.openqa.selenium.Dimension;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
@@ -48,6 +49,7 @@ class FreightHistoryNavigationTest {
         WebDriver driver = drivers.getObject();
 
         try {
+            driver.manage().window().setSize(new Dimension(1440, 1000));
             WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
             driver.get(base + "/entrar");
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("email"))).sendKeys(email);

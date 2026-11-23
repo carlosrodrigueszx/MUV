@@ -44,7 +44,8 @@ public class PropostaRepository {
                 rs.getString("descricao_volumes"), rs.getBigDecimal("peso_estimado_kg"), rs.getString("instrucoes_coleta"),
                 rs.getString("instrucoes_entrega"), rs.getBigDecimal("valor_cliente"), rs.getString("condicoes_cliente"), rs.getString("justificativa"), paradas(solicitacao),
                 rs.getString("mapa_caminho"), rs.getBigDecimal("percurso_km"),
-                rs.getObject("deslocamento_minutos", Integer.class), rs.getObject("duracao_minutos", Integer.class)),
+                rs.getObject("deslocamento_minutos", Integer.class), rs.getObject("duracao_minutos", Integer.class),
+                propostaEnviada(solicitacao, prestador)),
                 rs.getLong("id_passageiro")), prestador, solicitacao).stream().findFirst();
     }
 
@@ -55,6 +56,13 @@ public class PropostaRepository {
                 WHERE p.id_solicitacao=? ORDER BY p.ordem
                 """, (rs, row) -> new AvaliacaoSolicitacao.Parada(rs.getString(1),
                 rs.getObject(2, LocalDateTime.class)), solicitacao);
+    }
+
+    // Consulta separada para enxergar o envio confirmado enquanto se aguardava o lock da solicitação.
+    private boolean propostaEnviada(long solicitacao, long prestador) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS (SELECT 1 FROM proposta WHERE id_solicitacao=? AND id_prestador=?)
+                """, Boolean.class, solicitacao, prestador));
     }
 
     public void recusar(long solicitacao, long prestador, String justificativa) {

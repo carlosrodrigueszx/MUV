@@ -11,7 +11,7 @@ public class PropostaSecurityConfig {
     @Bean
     @Order(2)
     SecurityFilterChain propostaRoutes(HttpSecurity http) throws Exception {
-        return http.securityMatcher("/api/prestador/solicitacoes/*/avaliacao", "/api/prestador/solicitacoes/*/avaliacao/percurso", "/api/prestador/solicitacoes/*/propostas", "/api/prestador/solicitacoes/*/recusa")
+        return http.securityMatcher("/api/prestador/solicitacoes", "/api/prestador/solicitacoes/perfil", "/api/prestador/solicitacoes/*/avaliacao", "/api/prestador/solicitacoes/*/avaliacao/percurso", "/api/prestador/solicitacoes/*/propostas", "/api/prestador/solicitacoes/*/recusa")
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .requestCache(cache -> cache.disable())
                 .exceptionHandling(errors -> errors.authenticationEntryPoint((req, res, ex) -> res.setStatus(401)))

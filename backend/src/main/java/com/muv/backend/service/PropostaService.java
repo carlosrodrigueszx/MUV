@@ -51,6 +51,7 @@ public class PropostaService {
             if (valor.compareTo(registro.valor()) == 0 && condicoes.equals(registro.condicoes())) return registro.id();
             throw erro(HttpStatus.CONFLICT, "Esta tentativa já foi usada para outra resposta.");
         }
+        exigirSemProposta(oferta);
         if (!"ABERTA".equals(oferta.status())) throw erro(HttpStatus.CONFLICT, "A solicitação está encerrada.");
         boolean mesmoValor = oferta.valorCliente() == null ? resposta.valorRevisado() == null
                 : resposta.valorRevisado() != null && oferta.valorCliente().compareTo(resposta.valorRevisado()) == 0;
@@ -65,6 +66,7 @@ public class PropostaService {
     @Transactional
     public void recusar(long solicitacao, long prestador, String mensagem) {
         var atual = contexto(solicitacao, prestador, true);
+        exigirSemProposta(atual.detalhe());
         if (!"ABERTA".equals(atual.detalhe().status())) throw erro(HttpStatus.CONFLICT, "A solicitação está encerrada.");
         if (mensagem == null || mensagem.isBlank()) throw erro(HttpStatus.BAD_REQUEST, "Informe o motivo da recusa.");
         propostas.recusar(solicitacao, prestador, mensagem.strip());
@@ -74,6 +76,10 @@ public class PropostaService {
         if (solicitacao <= 0) throw erro(HttpStatus.BAD_REQUEST, "Identificador de solicitação inválido.");
         return propostas.consultar(solicitacao, prestador, bloquear)
                 .orElseThrow(() -> erro(HttpStatus.NOT_FOUND, "Solicitação indisponível para este prestador."));
+    }
+
+    private static void exigirSemProposta(AvaliacaoSolicitacao oferta) {
+        if (oferta.propostaEnviada()) throw erro(HttpStatus.CONFLICT, "Você já enviou uma proposta para esta solicitação.");
     }
 
     private static ResponseStatusException erro(HttpStatus status, String mensagem) {

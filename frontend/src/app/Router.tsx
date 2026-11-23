@@ -9,6 +9,7 @@ import {
 } from "../features/auth/AuthPages";
 import FreightCancellationPage from "../features/freight-cancellation/FreightCancellationPage";
 import PaginaAvaliacao from "../features/propostas/Avaliacao";
+import Disponiveis from "../features/solicitacoes/Disponiveis";
 import { CompararPropostas, FreteContratado } from "../features/contratacao/Contratacao";
 import Home from "../pages/Home";
 import Vehicles from "../pages/Vehicles";
@@ -36,6 +37,7 @@ export const Router: React.FC = () => {
         <Route path="/fretes/:freteId/cancelar" element={<FreightCancellationPage />} />
         <Route path="/conta" element={<AccountPage />} />
         <Route path="/prestador/solicitacoes/:id/avaliacao" element={<PaginaAvaliacao />} />
+        <Route path="/prestador/solicitacoes" element={<Disponiveis />} />
         <Route path="/prestador/veiculos" element={<Vehicles />} />
         <Route path="/prestador/motoristas" element={<DriverLinking />} />
         <Route path="/prestador/historico" element={<FreightHistory />} />

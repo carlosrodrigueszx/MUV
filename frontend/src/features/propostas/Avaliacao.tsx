@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { LuCheck, LuSend, LuShieldCheck, LuX } from "react-icons/lu";
 import { ProviderLayout } from "../../components/layout/ProviderLayout";
-import { avaliar, enviar, obterPercurso, type Rota, type Avaliacao } from "./api";
+import { ConflitoProposta, avaliar, enviar, obterPercurso, type Rota, type Avaliacao } from "./api";
 import { getSession } from "../auth/api";
 import { duracao } from "./duracao";
 import "./propostas.css";
@@ -26,9 +26,10 @@ export default function PaginaAvaliacao() {
 function Detalhe({ id }: { id: string }) {
   const [dados, setDados] = useState<Avaliacao>();
   const [rota, setRota] = useState<Rota | null>();
+  const [totalSolicitacoes, setTotalSolicitacoes] = useState(0);
   const [prestador, setPrestador] = useState("");
   const [erro, setErro] = useState("");
-  const [aviso, setAviso] = useState("");
+
   const [acao, setAcao] = useState<Acao>("AJUSTAR");
   const [preco, setPreco] = useState("");
   const [mensagem, setMensagem] = useState("");
@@ -49,6 +50,14 @@ function Detalhe({ id }: { id: string }) {
       .catch((e) => {
         if (!controller.signal.aborted) setErro(e.message);
       });
+    fetch("/api/prestador/solicitacoes?modalidade=TODAS", { signal: controller.signal, cache: "no-store" })
+      .then(async resposta => {
+        if (resposta.ok) {
+          const solicitacoes: { id: number }[] = await resposta.json();
+          setTotalSolicitacoes(solicitacoes.length);
+        }
+      })
+      .catch(() => { /* A avaliação continua disponível quando a contagem falha. */ });
     getSession(controller.signal)
       .then((s) => setPrestador(s?.nome ?? ""))
       .catch(() => {
@@ -62,7 +71,7 @@ function Detalhe({ id }: { id: string }) {
     setMensagem("");
     setPreco("");
     setErro("");
-    setAviso("");
+
     setModalAberto(true);
     modal.current?.showModal();
   }
@@ -72,7 +81,7 @@ function Detalhe({ id }: { id: string }) {
   async function confirmar(tipo: Acao) {
     if (!dados || trava.current) return;
     setErro("");
-    setAviso("");
+
     if (tipo !== "MANTER" && !mensagem.trim()) {
       setErro("Informe a justificativa.");
       return;
@@ -103,9 +112,17 @@ function Detalhe({ id }: { id: string }) {
       );
       if (tipo === "RECUSAR")
         setDados({ ...dados, justificativaRecusa: mensagem.trim() });
-      else setAviso("Proposta enviada ao cliente.");
+      else setDados({ ...dados, propostaEnviada: true });
       modal.current?.close();
     } catch (e) {
+      if (e instanceof ConflitoProposta) {
+        const atual = await avaliar(id).catch(() => undefined);
+        if (atual?.propostaEnviada) {
+          setDados(atual);
+          modal.current?.close();
+          return;
+        }
+      }
       setErro(e instanceof Error ? e.message : "Falha no envio.");
     } finally {
       trava.current = false;
@@ -124,6 +141,7 @@ function Detalhe({ id }: { id: string }) {
       <ProviderLayout
         pageTitle="Solicitações"
         activeNavKey="requests"
+        navBadges={{ requests: totalSolicitacoes }}
         organizationName={prestador}
         profileLabel="Prestador"
         isOnline={null}
@@ -244,7 +262,7 @@ function Detalhe({ id }: { id: string }) {
                 </section>
               </div>
             </div>
-            <section className="rf-barra">
+            {dados.propostaEnviada ? <p className="rf-barra" role="status">Proposta enviada ao cliente.</p> : <section className="rf-barra">
               <p>Sua resposta será enviada a {dados.cliente}.</p>
               <div className="rf-acoes">
                 <button
@@ -272,15 +290,16 @@ function Detalhe({ id }: { id: string }) {
                 </button>
               </div>
             </section>
+            }
             {dados.status !== "ABERTA" && (
               <p role="status">Solicitação encerrada.</p>
             )}
-            {dados.justificativaRecusa && (
+            {!dados.propostaEnviada && dados.justificativaRecusa && (
               <p role="status">
                 Proposta recusada · {dados.justificativaRecusa}
               </p>
             )}
-            {aviso && <p role="status">{aviso}</p>}
+
             <dialog
               ref={modal}
               aria-labelledby="rf-titulo"

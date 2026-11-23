@@ -12,6 +12,6 @@ public record AvaliacaoSolicitacao(long id, String modalidade, String status, St
         LocalDateTime partida, String origem, String destino, Integer passageiros, String bagagens,
         String volumes, BigDecimal pesoKg, String coleta, String entrega,
         BigDecimal valorCliente, String condicoesCliente, String justificativaRecusa, java.util.List<Parada> paradas,
-        String mapaCaminho, BigDecimal percursoKm, Integer deslocamentoMinutos, Integer duracaoMinutos) {
+        String mapaCaminho, BigDecimal percursoKm, Integer deslocamentoMinutos, Integer duracaoMinutos, boolean propostaEnviada) {
     public record Parada(String endereco, LocalDateTime horario) {}
 }
