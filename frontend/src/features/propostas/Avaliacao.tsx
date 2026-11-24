@@ -26,7 +26,6 @@ export default function PaginaAvaliacao() {
 function Detalhe({ id }: { id: string }) {
   const [dados, setDados] = useState<Avaliacao>();
   const [rota, setRota] = useState<Rota | null>();
-  const [totalSolicitacoes, setTotalSolicitacoes] = useState(0);
   const [prestador, setPrestador] = useState("");
   const [erro, setErro] = useState("");
 
@@ -50,14 +49,6 @@ function Detalhe({ id }: { id: string }) {
       .catch((e) => {
         if (!controller.signal.aborted) setErro(e.message);
       });
-    fetch("/api/prestador/solicitacoes?modalidade=TODAS", { signal: controller.signal, cache: "no-store" })
-      .then(async resposta => {
-        if (resposta.ok) {
-          const solicitacoes: { id: number }[] = await resposta.json();
-          setTotalSolicitacoes(solicitacoes.length);
-        }
-      })
-      .catch(() => { /* A avaliação continua disponível quando a contagem falha. */ });
     getSession(controller.signal)
       .then((s) => setPrestador(s?.nome ?? ""))
       .catch(() => {
@@ -113,6 +104,7 @@ function Detalhe({ id }: { id: string }) {
       if (tipo === "RECUSAR")
         setDados({ ...dados, justificativaRecusa: mensagem.trim() });
       else setDados({ ...dados, propostaEnviada: true });
+      window.dispatchEvent(new Event("muv:solicitacao-respondida"));
       modal.current?.close();
     } catch (e) {
       if (e instanceof ConflitoProposta) {
@@ -141,7 +133,6 @@ function Detalhe({ id }: { id: string }) {
       <ProviderLayout
         pageTitle="Solicitações"
         activeNavKey="requests"
-        navBadges={{ requests: totalSolicitacoes }}
         organizationName={prestador}
         profileLabel="Prestador"
         isOnline={null}
@@ -179,12 +170,15 @@ function Detalhe({ id }: { id: string }) {
                       <b>
                         {new Date(dados.partida).toLocaleDateString("pt-BR")}
                       </b>
+                      {dados.retornoPrevisto && <small>
+                        Retorno: {new Date(dados.retornoPrevisto).toLocaleString("pt-BR")}
+                      </small>}
                     </div>
                     <div>
                       <small>{pessoa ? "GRUPO E MODALIDADE" : "VOLUMES"}</small>
                       <b>
                         {pessoa
-                          ? dados.passageiros + " pessoas"
+                          ? `${dados.passageiros} ${dados.passageiros === 1 ? "pessoa" : "pessoas"}`
                           : dados.volumes}
                       </b>
                     </div>

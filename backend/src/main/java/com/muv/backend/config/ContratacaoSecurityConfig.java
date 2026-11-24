@@ -11,7 +11,7 @@ public class ContratacaoSecurityConfig {
     @Bean
     @Order(2)
     SecurityFilterChain contratacaoRoutes(HttpSecurity http) throws Exception {
-        return http.securityMatcher("/api/cliente/solicitacoes/*/propostas", "/api/cliente/solicitacoes/*/propostas/*/aceite", "/api/cliente/fretes/*")
+        return http.securityMatcher("/api/cliente/solicitacoes", "/api/cliente/solicitacoes/*/propostas", "/api/cliente/solicitacoes/*/propostas/*/aceite", "/api/cliente/fretes/*")
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .requestCache(cache -> cache.disable())
                 .exceptionHandling(errors -> errors.authenticationEntryPoint((req, res, ex) -> res.setStatus(401)))

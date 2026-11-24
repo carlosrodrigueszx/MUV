@@ -43,7 +43,8 @@ public class AuthSecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/cadastro", "/api/auth/login",
                                 "/api/auth/cadastro/empresa", "/api/auth/cadastro/autonomo", "/api/auth/recuperacao", "/api/auth/redefinicao").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/auth/sessao").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/sessao", "/api/auth/visao-geral").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/perfil/autonomo").authenticated()
                         .anyRequest().denyAll())
                 .requestCache(cache -> cache.disable())
                 .exceptionHandling(errors -> errors.authenticationEntryPoint((req, res, ex) -> res.setStatus(401)))

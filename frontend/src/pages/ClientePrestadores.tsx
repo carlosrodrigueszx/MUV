@@ -1,8 +1,7 @@
+import { AccountNavbar } from "../features/freight-history/components/AccountNavbar";
+import { LuCarFront } from "react-icons/lu";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import bellIcon from "../assets/figma/bell.svg";
-import chevronDownIcon from "../assets/figma/chevron-down.svg";
-import routeIcon from "../assets/figma/route.svg";
 import {
   searchProviders,
   type FreightModality,
@@ -11,6 +10,9 @@ import {
   type ProviderType,
 } from "../features/provider-search/api";
 
+import { getSession, readRecentSession, type Session } from "../features/auth/api";
+import { DirectedRequestForm } from "../features/trip-planning/DirectedRequestForm";
+import { readTripDraft } from "../features/trip-planning/draft";
 import type { TripNavigationState } from "../features/trip-planning/criteria";
 
 const dateTimeFormat = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
@@ -134,7 +136,41 @@ function ProviderCard({ provider, onAction, onSelect, selected }: ProviderCardPr
 
 export default function ClientePrestadores() {
   const { key, state } = useLocation();
-  return <ProviderResults key={key} state={state as TripNavigationState | null} />;
+  const [session, setSession] = useState<Session | null | undefined>(readRecentSession);
+  const [sessionError, setSessionError] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getSession(controller.signal).then(account => {
+      if (!controller.signal.aborted) setSession(account);
+    }).catch(() => {
+      if (!controller.signal.aborted) setSessionError(true);
+    });
+    return () => controller.abort();
+  }, []);
+
+  const trip = session?.passageiro
+    ? readTripDraft(session.id) ?? (state as TripNavigationState | null)?.trip
+    : undefined;
+
+  return (
+    <div className="min-h-screen bg-[#f5f7f8] text-[#1d2d32]">
+      <AccountNavbar fixed={false} currentSession={session ?? undefined} />
+      {sessionError ? (
+        <main className="mx-auto max-w-[1440px] p-6">
+          <p role="alert">Não foi possível recuperar a sessão. Recarregue a página.</p>
+        </main>
+      ) : session === undefined ? (
+        <main className="mx-auto max-w-[1440px] p-6" aria-busy="true">
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <p role="status">Carregando consulta…</p>
+          </div>
+        </main>
+      ) : (
+        <ProviderResults key={`${key}:${session?.id ?? "visitante"}`} state={trip ? { trip } : null} />
+      )}
+    </div>
+  );
 }
 
 function ProviderResults({ state }: { state: TripNavigationState | null }) {
@@ -152,7 +188,7 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
     error?: string;
   }>();
   const [sortByName, setSortByName] = useState(false);
-  const [selectedId, setSelectedId] = useState<number>();
+  const [selectedVehicleId, setSelectedVehicleId] = useState<number>();
   const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
@@ -177,7 +213,7 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSelectedId(undefined);
+    setSelectedVehicleId(undefined);
     setRequest({
       ...parseRegion(region),
       ...(trip ? tripFilters : service && { modalidade: service }),
@@ -189,7 +225,7 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
     setRegion("");
     setProviderType("");
     setSortByName(false);
-    setSelectedId(undefined);
+    setSelectedVehicleId(undefined);
     setRequest(tripFilters);
   }
 
@@ -199,107 +235,15 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
   const providers = sortByName
     ? [...matches].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
     : matches;
-  const selected = providers.find(provider => provider.id === selectedId);
   const resultCount = providers.length;
+  const vehicles = trip ? providers.flatMap(provider =>
+    provider.veiculosDisponiveis.map(vehicle => ({ provider, vehicle })),
+  ) : [];
+  const selected = vehicles.find(({ vehicle }) => vehicle.id === selectedVehicleId);
   const FilterPanel = trip ? "details" : "section";
 
   return (
-    <div className="min-h-screen bg-[#f5f7f8] text-[#1d2d32] [font-family:Inter,'Noto_Sans',Arial,sans-serif]">
-      <header className="sticky top-0 z-20 h-20 border-b border-[#dfe6e7] bg-white">
-        <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between px-12 max-md:px-4">
-          <Link to="/" className="flex shrink-0 items-center gap-[9px]">
-            <span className="flex size-8 items-center justify-center rounded-[10px] bg-[#17695b]">
-              <img src={routeIcon} alt="" width={20} height={20} />
-            </span>
-            <span className="text-[25px] font-bold leading-none tracking-[-1px] text-[#104e43]">
-              MUV
-            </span>
-          </Link>
-
-          <nav
-            aria-label="Navegação do passageiro"
-            className="flex h-full shrink-0 items-center gap-9 max-md:hidden"
-          >
-            <Link
-              to="/"
-              className="flex h-full flex-col items-center justify-center"
-            >
-              <span className="flex h-[77px] items-center text-[14px] font-medium leading-[1.45] text-[#637479]">
-                Solicitar frete
-              </span>
-              <span className="h-[3px] w-full bg-transparent" />
-            </Link>
-            <Link
-              to="/cliente/prestadores"
-              aria-current="page"
-              className="flex h-full flex-col items-center justify-center"
-            >
-              <span className="flex h-[77px] items-center text-[14px] font-semibold leading-[1.45] text-[#17695b]">
-                Prestadores
-              </span>
-              <span className="h-[3px] w-full bg-[#17695b]" />
-            </Link>
-            <Link
-              to="/cliente/historico"
-              className="flex h-full flex-col items-center justify-center"
-            >
-              <span className="flex h-[77px] items-center text-[14px] font-medium leading-[1.45] text-[#637479]">
-                Meus fretes
-              </span>
-              <span className="h-[3px] w-full bg-transparent" />
-            </Link>
-          </nav>
-
-          <div className="flex shrink-0 items-center gap-5 max-sm:gap-3">
-            <button
-              type="button"
-              onClick={() =>
-                setFeedback("A troca de perfil ainda não está conectada.")
-              }
-              className="whitespace-nowrap text-[12px] font-medium leading-[1.45] text-[#637479] max-sm:hidden"
-            >
-              Trocar perfil
-            </button>
-            <span className="h-6 w-px bg-[#dfe6e7] max-sm:hidden" />
-            <button
-              type="button"
-              aria-label="Notificações"
-              onClick={() =>
-                setFeedback("As notificações ainda não estão conectadas.")
-              }
-              className="flex size-5 items-center justify-center"
-            >
-              <img src={bellIcon} alt="" width={20} height={20} />
-            </button>
-            <button
-              type="button"
-              aria-label="Perfil de AO"
-              onClick={() =>
-                setFeedback("A troca de perfil ainda não está conectada.")
-              }
-              className="flex size-9 items-center justify-center rounded-full bg-[#e6f2ee] text-[12px] font-semibold leading-[1.45] text-[#17695b]"
-            >
-              AO
-            </button>
-            <button
-              type="button"
-              aria-label="Abrir opções do perfil"
-              onClick={() =>
-                setFeedback("A troca de perfil ainda não está conectada.")
-              }
-              className="flex size-4 items-center justify-center"
-            >
-              <img
-                src={chevronDownIcon}
-                alt=""
-                width={16}
-                height={16}
-              />
-            </button>
-          </div>
-        </div>
-      </header>
-
+    <div className="[font-family:Inter,'Noto_Sans',Arial,sans-serif]">
       <main className={`mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-12 pb-[79px] pt-9 max-lg:px-8 max-md:px-4 max-md:pb-12 max-md:pt-6 ${trip ? "lg:grid lg:grid-cols-[minmax(240px,1fr)_minmax(0,3fr)] lg:items-start" : ""}`}>
         {trip && (
           <section aria-labelledby="trip-summary" className="grid gap-3 rounded-[14px] border border-[#dfe7e8] bg-white p-6 wrap-anywhere lg:col-span-2">
@@ -328,7 +272,7 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
         >
           <div className="flex flex-col gap-6">
             <h1 className="text-[30px] font-bold leading-[1.45] text-[#1d2d32]">
-              Encontre o prestador certo
+              {trip ? "Veículos para sua viagem" : "Encontre o prestador certo"}
             </h1>
             <p className="text-[14px] font-normal leading-5 text-[#637479]">
               {trip
@@ -418,7 +362,7 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
         <h2 aria-live={trip ? "polite" : undefined} className={`text-[17px] font-semibold leading-[1.45] text-[#1d2d32] ${trip ? "lg:col-start-2" : ""}`}>
           {loading
             ? "Consultando prestadores..."
-            : trip ? `${resultCount} ${resultCount === 1 ? "prestador compatível" : "prestadores compatíveis"}`
+            : trip ? `${vehicles.length} ${vehicles.length === 1 ? "veículo compatível" : "veículos compatíveis"}`
             : resultCount > 0
             ? `${resultCount} ${
                 resultCount === 1
@@ -438,7 +382,36 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
           <section role="alert" className="rounded-[14px] border border-[#dfe7e8] bg-white p-6">
             <p className="text-[14px] leading-[1.45] text-[#1d2d32]">{error}</p>
           </section>
-        ) : resultCount > 0 ? (
+        ) : trip && vehicles.length > 0 ? (
+          <section aria-label="Veículos compatíveis" className="grid min-w-0 gap-3 lg:col-start-2">
+            {vehicles.map(({ provider, vehicle }) => (
+              <article key={vehicle.id} className="grid min-w-0 gap-4 rounded-xl border border-[#dfe7e8] bg-white p-5 sm:grid-cols-[auto_minmax(0,1fr)]">
+                <span aria-hidden="true" className="grid size-12 place-items-center rounded-lg bg-[#e5f2ee] text-[#17695b]">
+                  <LuCarFront size={24} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="break-words text-lg font-semibold">{vehicle.marca} {vehicle.modelo}</h3>
+                  <p className="mt-1 break-words text-sm text-slate-600">{provider.nome} · {provider.tipo === "EMPRESA" ? "Empresa" : "Autônomo"}</p>
+                  <p className="mt-1 text-sm">Até {vehicle.capacidadePassageiros} {vehicle.capacidadePassageiros === 1 ? "passageiro" : "passageiros"}</p>
+                  <details className="mt-3 text-sm">
+                    <summary className="w-fit cursor-pointer font-semibold text-[#17695b]">Ver detalhes</summary>
+                    <p className="mt-2">Ano do veículo: {vehicle.ano}</p>
+                    {provider.regioesAtendidas.length > 0 && <p className="mt-1 break-words">
+                      Regiões atendidas: {provider.regioesAtendidas.map(({ cidade, estado }) => `${cidade} - ${estado}`).join(", ")}
+                    </p>}
+                    <button type="button" onClick={() => {
+                      setSelectedVehicleId(vehicle.id);
+                      document.getElementById("request-review")?.scrollIntoView({ block: "nearest" });
+                    }}
+                      className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-[#17695b] px-3 font-semibold text-white">
+                      Revisar solicitação para {provider.nome}
+                    </button>
+                  </details>
+                </div>
+              </article>
+            ))}
+          </section>
+        ) : !trip && resultCount > 0 ? (
           <section
             aria-label={trip ? "Prestadores compatíveis" : "Prestadores que atendem sua rota"}
             className="grid w-full grid-cols-2 items-start gap-5 max-md:grid-cols-1"
@@ -448,8 +421,7 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
                 key={provider.id}
                 provider={provider}
                 onAction={setFeedback}
-                onSelect={trip ? () => setSelectedId(provider.id) : undefined}
-                selected={provider.id === selectedId}
+                selected={false}
               />
             ))}
           </section>
@@ -460,22 +432,17 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
           >
             <p className="text-[14px] leading-[1.45] text-[#637479]">
               {request
-                ? "Nenhum prestador encontrado para os filtros informados."
+                ? trip ? "Nenhum veículo compatível para os filtros informados." : "Nenhum prestador encontrado para os filtros informados."
                 : "Informe os filtros desejados e pesquise para consultar os prestadores."}
             </p>
           </section>
         )}
 
-        {trip && <section aria-labelledby="request-review" className="rounded-[14px] border border-[#dfe7e8] bg-white p-6">
+        {trip && <section aria-labelledby="request-review" className="scroll-mt-6 lg:col-start-2 rounded-[14px] border border-[#dfe7e8] bg-white p-6">
           <h2 id="request-review" className="text-lg font-semibold">Revisar solicitação</h2>
-          <p role="status" className="mt-2">{selected ? `Destinatário: ${selected.nome}` : "Selecione um prestador para revisar o destinatário."}</p>
-          <p id="request-blocked" className="mt-2 text-sm text-[#637479]">
-            O envio está indisponível enquanto a integração para gravar a solicitação e o roteiro completo estiver pendente.
-          </p>
-          <button type="button" disabled aria-describedby="request-blocked"
-            className="mt-3 rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
-            Enviar solicitação direcionada
-          </button>
+          <p role="status" className="mt-2">{selected ? `Destinatário: ${selected.provider.nome}` : "Selecione um veículo para revisar o destinatário."}</p>
+          {selected && <DirectedRequestForm key={selected.vehicle.id} trip={trip}
+            providerId={selected.provider.id} vehicleId={selected.vehicle.id} />}
         </section>}
         {!trip && <section className="flex min-h-[172px] w-full flex-col items-start gap-4 rounded-[14px] border border-[#dfe7e8] bg-white p-6">
           <h2 className="text-[19px] font-semibold leading-[1.45] text-[#1d2d32]">
