@@ -25,6 +25,7 @@
   padding: 1.45rem;
   box-shadow: 0 4px 12px #1d2d320d;
 }
+.rf-grade > div { min-width: 0; }
 .rf-grade section {
   margin-bottom: 1.25rem;
 }
@@ -78,6 +79,8 @@
 .rf007 .rf-mapa {
   position: relative;
   overflow: hidden;
+  width: 100%;
+  min-width: 0;
   min-height: 300px;
   aspect-ratio: 557/367;
   background: #e6eee9;
@@ -224,7 +227,7 @@
     padding: 1rem;
   }
   .rf-grade {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0;
   }
   .rf-barra,

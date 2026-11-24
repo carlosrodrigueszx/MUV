@@ -30,11 +30,12 @@ export default function FreightHistory() {
 
   const query = new URLSearchParams(location.search);
   const freight = query.get("frete");
-  const period = freight ? query.get("periodo") : null;
+  const request = query.get("solicitacao");
+  const period = freight || request ? query.get("periodo") : null;
   return <FreightHistoryContent
     key={routeProfile + location.search}
     routeProfile={routeProfile}
-    preferredId={freight ? `FR-${freight}` : null}
+    preferredId={freight ? `FR-${freight}` : request ? `SL-${request}` : null}
     period={period && /^\d{4}-(0[1-9]|1[0-2])$/.test(period) ? period : undefined}
   />;
 }

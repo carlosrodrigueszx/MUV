@@ -42,4 +42,14 @@ class SolicitacoesDisponiveisRepositoryTest {
         assertFalse(itens.stream().filter(item -> item.id()==907032).findFirst().orElseThrow().autorizada());
         assertFalse(itens.toString().contains("cliente907@example.test"));
     }
+
+    @Test void indicaRespostaApenasDoPrestadorQueRespondeu() {
+        assertFalse(repositorio.listar(907002, "PESSOA", null, null).getFirst().respondida());
+        jdbc.update("""
+                INSERT INTO recusa_solicitacao (id_solicitacao, id_prestador, justificativa)
+                VALUES (907031, 907002, 'Teste')
+                """);
+        assertTrue(repositorio.listar(907002, "PESSOA", null, null).getFirst().respondida());
+        assertFalse(repositorio.listar(907003, "PESSOA", null, null).getFirst().respondida());
+    }
 }

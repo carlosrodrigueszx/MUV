@@ -8,7 +8,9 @@ import santos from "../assets/viagens/santos.webp";
 import serra from "../assets/viagens/serra.webp";
 import { getSession, readRecentSession, type Session } from "../features/auth/api";
 
-import { validateTrip, type TripNavigationState } from "../features/trip-planning/criteria";
+import { validateTrip, type TripCriteria, type TripNavigationState } from "../features/trip-planning/criteria";
+
+import { saveTripDraft } from "../features/trip-planning/draft";
 
 const field = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm";
 const primary = "inline-flex items-center justify-center gap-2 rounded-lg bg-[#176457] px-4 py-2.5 text-sm font-semibold text-white cursor-pointer transition-colors hover:bg-[#0e4940] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#176457]";
@@ -26,19 +28,9 @@ const routes = [
 
 export default function PlanejarViagem() {
   const navigate = useNavigate();
-  const { hash, state } = useLocation();
-  const trip = (state as TripNavigationState | null)?.trip;
-  const [formError, setFormError] = useState("");
-  const [offerAmount, setOfferAmount] = useState(() =>
-    trip?.offer ? offerAmountFormat.format(Number(trip.offer.amount)) : "",
-  );
+  const { hash, key, state } = useLocation();
   const [session, setSession] = useState<Session | undefined>(readRecentSession);
   const [sessionError, setSessionError] = useState("");
-  const [roundTrip, setRoundTrip] = useState(Boolean(trip?.returnAt));
-  const [stops, setStops] = useState(trip?.stops ?? []);
-  const [departure, setDeparture] = useState(trip?.departure.split("T")[0] ?? "");
-  const [returnDate, setReturnDate] = useState(trip?.returnAt?.split("T")[0] ?? "");
-  const [returnTime, setReturnTime] = useState(trip?.returnAt?.split("T")[1] ?? "");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -69,6 +61,26 @@ export default function PlanejarViagem() {
       : session.motorista ? "/motorista" : "/conta";
     return <Navigate to={destination} replace />;
   }
+
+  const trip = (state as TripNavigationState | null)?.trip;
+  return <TripPlanner key={`${session.id}:${key}`} session={session} sessionError={sessionError} trip={trip} />;
+}
+
+function TripPlanner({ session, sessionError, trip }: {
+  session: Session;
+  sessionError: string;
+  trip?: TripCriteria;
+}) {
+  const navigate = useNavigate();
+  const [formError, setFormError] = useState("");
+  const [offerAmount, setOfferAmount] = useState(() =>
+    trip?.offer ? offerAmountFormat.format(Number(trip.offer.amount)) : "",
+  );
+  const [roundTrip, setRoundTrip] = useState(Boolean(trip?.returnAt));
+  const [stops, setStops] = useState(trip?.stops ?? []);
+  const [departure, setDeparture] = useState(trip?.departure.split("T")[0] ?? "");
+  const [returnDate, setReturnDate] = useState(trip?.returnAt?.split("T")[0] ?? "");
+  const [returnTime, setReturnTime] = useState(trip?.returnAt?.split("T")[1] ?? "");
 
   return <main className="min-h-screen bg-[#f4f6f7] text-slate-900">
     <AccountNavbar currentSession={session} fixed={false} />
@@ -104,6 +116,7 @@ export default function PlanejarViagem() {
             return;
           }
           // Keep the submitted criteria on both entries so browser Back also restores them.
+          saveTripDraft(session.id, result.trip);
           const state = { trip: result.trip };
           navigate("/cliente/planejar-viagem", { replace: true, state });
           navigate("/cliente/prestadores", { state });

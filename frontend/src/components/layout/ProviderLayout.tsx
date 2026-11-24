@@ -63,6 +63,41 @@ export function ProviderLayout({
     return () => controller.abort();
   }, []);
 
+  const providerId = session?.prestador ? session.id : undefined;
+  const requestPath = providerId && (!inDriverPortal || !session?.empresa)
+    ? `${portalHome}/solicitacoes` : undefined;
+  const [requestCount, setRequestCount] = useState(0);
+
+  useEffect(() => {
+    if (!requestPath || providerId === undefined) return;
+    let request: AbortController | undefined;
+    async function refresh() {
+      request?.abort();
+      const controller = new AbortController();
+      request = controller;
+      try {
+        const response = await fetch("/api/prestador/solicitacoes", {
+          signal: controller.signal, cache: "no-store",
+        });
+        if (!response.ok) return;
+        const rows = await response.json() as Array<{ autorizada: boolean; respondida: boolean }>;
+        if (!controller.signal.aborted) setRequestCount(rows.filter(row => row.autorizada && !row.respondida).length);
+      } catch {
+        // Keep the last count while the connection is unavailable.
+      }
+    }
+    void refresh();
+    const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 15000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("muv:solicitacao-respondida", refresh);
+    return () => {
+      request?.abort();
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("muv:solicitacao-respondida", refresh);
+    };
+  }, [providerId, requestPath, pathname]);
+
   return (
     <div
       className="flex min-h-screen flex-col bg-[#f5f7f8] text-[#1d2d32] antialiased md:flex-row"
@@ -101,7 +136,7 @@ export function ProviderLayout({
             const currentKey = portalHome === "/motorista" && activeNavKey === "overview" && hash === "#agenda"
               ? "agenda" : activeNavKey;
             const active = key === currentKey;
-            const badge = navBadges[key];
+            const badge = key === "requests" && requestPath ? requestCount : navBadges[key];
             return (
               <Link
                 key={key}
@@ -195,14 +230,17 @@ export function ProviderLayout({
               </span>
             </button>}
             <span className="h-[22px] w-px bg-[#dfe6e7]" />
-            <button
-              type="button"
-              aria-label="Notificações"
-              onClick={onNotificationsClick}
-              className="text-[#1d2d32]"
-            >
-              <LuBell size={20} />
-            </button>
+            {requestPath && !onNotificationsClick ? (
+              <Link to={requestPath} aria-label={`Solicitações pendentes: ${requestCount}`}
+                className="relative grid size-9 place-items-center rounded-lg hover:bg-[#f5f7f8]">
+                <LuBell size={20} aria-hidden />
+                {requestCount > 0 && <span className="absolute right-0 top-0 rounded-full bg-[#17695b] px-1 text-[10px] text-white">{requestCount}</span>}
+              </Link>
+            ) : (
+              <button type="button" aria-label="Notificações" onClick={onNotificationsClick} className="text-[#1d2d32]">
+                <LuBell size={20} />
+              </button>
+            )}
             <AccountMenu session={session} avatarUrl={avatarUrl} />
           </div>
         </header>
