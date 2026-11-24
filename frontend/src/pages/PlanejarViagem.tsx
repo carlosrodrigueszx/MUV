@@ -1,14 +1,12 @@
+import { AccountNavbar } from "../features/freight-history/components/AccountNavbar";
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { LuArrowRight, LuPlus, LuSearch, LuX } from "react-icons/lu";
-import bellIcon from "../assets/figma/bell.svg";
-import chevronDownIcon from "../assets/figma/chevron-down.svg";
-import routeIcon from "../assets/figma/route.svg";
 import litoral from "../assets/viagens/litoral.webp";
 import saoPaulo from "../assets/viagens/sao-paulo.webp";
 import santos from "../assets/viagens/santos.webp";
 import serra from "../assets/viagens/serra.webp";
-import { getSession, type Session } from "../features/auth/api";
+import { getSession, readRecentSession, type Session } from "../features/auth/api";
 
 import { validateTrip, type TripNavigationState } from "../features/trip-planning/criteria";
 
@@ -28,13 +26,13 @@ const routes = [
 
 export default function PlanejarViagem() {
   const navigate = useNavigate();
-  const { state } = useLocation();
+  const { hash, state } = useLocation();
   const trip = (state as TripNavigationState | null)?.trip;
   const [formError, setFormError] = useState("");
   const [offerAmount, setOfferAmount] = useState(() =>
     trip?.offer ? offerAmountFormat.format(Number(trip.offer.amount)) : "",
   );
-  const [session, setSession] = useState<Session>();
+  const [session, setSession] = useState<Session | undefined>(readRecentSession);
   const [sessionError, setSessionError] = useState("");
   const [roundTrip, setRoundTrip] = useState(Boolean(trip?.returnAt));
   const [stops, setStops] = useState(trip?.stops ?? []);
@@ -45,6 +43,7 @@ export default function PlanejarViagem() {
   useEffect(() => {
     const controller = new AbortController();
     getSession(controller.signal).then(account => {
+      if (controller.signal.aborted) return;
       if (account) setSession(account);
       else navigate("/entrar", { replace: true });
     }).catch(() => {
@@ -53,40 +52,27 @@ export default function PlanejarViagem() {
     return () => controller.abort();
   }, [navigate]);
 
+  useEffect(() => {
+    if (session && hash === "#roteiros") {
+      document.getElementById("roteiros")?.scrollIntoView();
+    }
+  }, [hash, session]);
+
   if (!session) {
     return <main className="p-6 text-slate-700">
       {sessionError ? <p role="alert">{sessionError}</p> : <p role="status">Verificando sessão…</p>}
     </main>;
   }
 
-  const initials = session.nome.trim().split(/\s+/).slice(0, 2)
-    .map(name => [...name][0]).join("").toLocaleUpperCase("pt-BR");
+  if (!session.passageiro) {
+    const destination = session.prestador ? "/prestador/solicitacoes"
+      : session.motorista ? "/motorista/achados-perdidos" : "/conta";
+    return <Navigate to={destination} replace />;
+  }
 
   return <main className="min-h-screen bg-[#f4f6f7] text-slate-900">
-    <header className="border-b border-slate-200 bg-white">
-      <nav aria-label="Menu principal" className="mx-auto grid max-w-[1440px] grid-cols-[1fr_auto] items-center gap-x-4 px-4 sm:px-8 lg:min-h-20 lg:grid-cols-[1fr_auto_1fr] lg:px-12">
-        <Link to="/" className="flex w-fit items-center gap-2.5 py-4 font-bold text-[#005447]">
-          <span className="grid size-8 place-items-center rounded-[10px] bg-[#007464]"><img src={routeIcon} alt="" width={20} height={20} /></span>
-          <span className="text-[25px] leading-none tracking-tight">MUV</span>
-        </Link>
-        <div className="col-span-2 row-start-2 flex flex-wrap items-stretch gap-x-6 text-sm font-medium text-[#5c717a] sm:gap-x-9 lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:min-h-20">
-          <Link to="/cliente/planejar-viagem" aria-current="page" className="inline-flex items-center border-b-2 border-[#007464] py-3 font-semibold text-[#005d50]">Planejar viagem</Link>
-          <a href="#roteiros" className="inline-flex items-center border-b-2 border-transparent py-3 transition-colors hover:text-[#005d50]">Pacotes</a>
-          <Link to="/cliente/historico" className="inline-flex items-center border-b-2 border-transparent py-3 transition-colors hover:text-[#005d50]">Minhas viagens</Link>
-        </div>
-        <div className="col-start-2 row-start-1 flex items-center justify-self-end gap-3 sm:gap-5 lg:col-start-3">
-          <Link to="/cadastro" className="whitespace-nowrap text-xs font-medium text-[#5c717a] transition-colors hover:text-[#005d50]">Seja motorista</Link>
-          <span className="h-6 w-px bg-[#dfe6e7]" aria-hidden="true" />
-          <button type="button" aria-label="Notificações" disabled className="grid size-5 place-items-center">
-            <img src={bellIcon} alt="" width={20} height={20} />
-          </button>
-          <Link to="/conta" aria-label="Minha conta" title={session.nome} className="flex items-center gap-3 sm:gap-5">
-            <span className="grid size-9 place-items-center rounded-full bg-[#e1f1eb] text-xs font-semibold text-[#005d50] transition-colors hover:bg-[#cce7df]">{initials}</span>
-            <img src={chevronDownIcon} alt="" width={16} height={16} />
-          </Link>
-        </div>
-      </nav>
-    </header>
+    <AccountNavbar currentSession={session} fixed={false} />
+    {sessionError && <p role="alert" className="px-4 py-2 text-sm text-red-800">{sessionError}</p>}
 
     <div className="mx-auto grid max-w-[1440px] gap-5 px-4 py-6 sm:px-8 lg:px-12 lg:pt-7">
       <section className="grid overflow-hidden rounded-3xl bg-[#e4f0eb] shadow-[0_4px_20px_#142d251a] md:min-h-[267px] md:grid-cols-[47.6%_52.4%]">

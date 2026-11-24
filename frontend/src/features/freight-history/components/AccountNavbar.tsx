@@ -1,95 +1,86 @@
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import {
-  LuBell,
-  LuChevronDown,
-  LuCompass,
-  LuMenu,
-  LuX,
-} from "react-icons/lu";
+import { AccountMenu } from "../../auth/AccountMenu";
+import { useEffect, useRef, useState } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import bellIcon from "../../../assets/figma/bell.svg";
+import routeIcon from "../../../assets/figma/route.svg";
+import { ActivateIndependentForm } from "../../auth/AuthPages";
+import { getSession, readRecentSession, type Session } from "../../auth/api";
 
-export function AccountNavbar() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const location = useLocation();
-  const historyPath = location.pathname.startsWith("/prestador/")
-    ? "/prestador/historico"
-    : "/cliente/historico";
-  const accountLinks = [
-    { label: "Solicitar frete", to: "/cliente/planejar-viagem" },
+export function AccountNavbar({ currentSession, fixed = true }: {
+  currentSession?: Session;
+  fixed?: boolean;
+}) {
+  const { pathname } = useLocation();
+  const [loadedSession, setLoadedSession] = useState<Session | null | undefined>(readRecentSession);
+  const session = currentSession ?? loadedSession;
+  const portalHome = session === null ? "/"
+    : session?.passageiro || session === undefined ? "/cliente/planejar-viagem"
+    : session.prestador ? "/prestador/solicitacoes"
+    : session.motorista ? "/motorista/achados-perdidos" : "/conta";
+  const links = [
+    { label: "Planejar viagem", to: "/cliente/planejar-viagem" },
     { label: "Prestadores", to: "/cliente/prestadores" },
-    { label: "Meus fretes", to: historyPath },
+    { label: "Meus fretes", to: pathname.startsWith("/prestador/") ? "/prestador/historico" : "/cliente/historico" },
   ];
+  const accountMenu = useRef<HTMLDetailsElement>(null);
+  const activationDialog = useRef<HTMLDialogElement>(null);
+  const [activated, setActivated] = useState(false);
 
-  return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-md">
-      <div className="mx-auto flex h-20 max-w-[1440px] items-center justify-between px-5 sm:px-8 lg:px-12">
-        <Link to="/" className="flex items-center gap-2.5" aria-label="Página inicial MUV">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#176A5B] text-white">
-            <LuCompass size={18} strokeWidth={2.2} />
-          </span>
-          <span className="text-[27px] font-extrabold tracking-tight text-[#124D43]">MUV</span>
+  useEffect(() => {
+    if (currentSession) return;
+    const controller = new AbortController();
+    getSession(controller.signal).then(account => {
+      if (!controller.signal.aborted) setLoadedSession(account);
+    }).catch(() => {
+      if (!controller.signal.aborted) setLoadedSession(null);
+    });
+    return () => controller.abort();
+  }, [currentSession]);
+
+  return <>
+    <header className={`border-b border-slate-200 bg-white ${fixed ? "fixed inset-x-0 top-0 z-50" : "relative z-20"}`}>
+      <nav aria-label="Menu principal" className="mx-auto grid max-w-[1440px] grid-cols-[1fr_auto] items-center gap-x-4 px-4 sm:px-8 lg:min-h-20 lg:grid-cols-[1fr_auto_1fr] lg:px-12">
+        <Link to={portalHome} aria-label="Início do MUV" className="flex w-fit items-center gap-2.5 py-4 font-bold text-[#005447]">
+          <span className="grid size-8 place-items-center rounded-[10px] bg-[#007464]"><img src={routeIcon} alt="" width={20} height={20} /></span>
+          <span className="text-[25px] leading-none tracking-tight">MUV</span>
         </Link>
-
-        <nav className="hidden h-full items-center gap-9 text-sm font-medium text-slate-600 md:flex">
-          {accountLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={`flex h-full items-center border-b-2 px-1 transition-colors hover:text-[#176A5B] ${
-                link.to === historyPath
-                  ? "border-[#176A5B] font-semibold text-[#176A5B]"
-                  : "border-transparent"
-              }`}
-            >
-              {link.label}
-            </Link>
+        <div className="col-span-2 row-start-2 flex flex-wrap items-stretch justify-center gap-x-6 text-sm font-medium text-[#5c717a] sm:gap-x-9 lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:min-h-20">
+          {links.map(({ to, label }) => (
+            <NavLink key={to} to={to} end className={({ isActive }) =>
+              `inline-flex items-center border-b-2 py-3 hover:text-[#005d50] ${isActive
+                ? "border-[#007464] font-semibold text-[#005d50]"
+                : "border-transparent"}`
+            }>{label}</NavLink>
           ))}
-        </nav>
-
-        <div className="hidden items-center gap-5 md:flex">
-          <button className="text-xs font-medium text-slate-600 hover:text-[#176A5B]" type="button">
-            Trocar perfil
-          </button>
-          <span className="h-6 w-px bg-slate-200" />
-          <button type="button" aria-label="Notificações" className="text-slate-500 hover:text-[#176A5B]">
-            <LuBell size={19} />
-          </button>
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E5F2EF] text-xs font-bold text-[#176A5B]">
-            AO
-          </span>
-          <button type="button" aria-label="Abrir opções da conta" className="text-slate-500">
-            <LuChevronDown size={18} />
-          </button>
         </div>
+        <div className="col-start-2 row-start-1 flex items-center justify-self-end gap-3 sm:gap-5 lg:col-start-3">
+          {session?.podeAtivarAutonomo && !activated && <button type="button"
+            className="whitespace-nowrap text-xs font-medium text-[#5c717a] hover:text-[#005d50]"
+            onClick={() => {
+              if (accountMenu.current) accountMenu.current.open = false;
+              activationDialog.current?.showModal();
+            }}>Seja motorista</button>}
+          <span className="h-6 w-px bg-[#dfe6e7]" aria-hidden="true" />
+          <button type="button" aria-label="Notificações" disabled className="grid size-5 place-items-center">
+            <img src={bellIcon} alt="" width={20} height={20} />
+          </button>
+          <AccountMenu session={session} menuRef={accountMenu} />
+        </div>
+      </nav>
+    </header>
 
-        <button
-          type="button"
-          className="p-2 text-slate-700 md:hidden"
-          aria-label="Abrir menu"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          {menuOpen ? <LuX size={23} /> : <LuMenu size={23} />}
+    <dialog ref={activationDialog} aria-label="Seja motorista"
+      className="m-auto max-h-[85dvh] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-xl bg-white p-4 shadow-xl backdrop:bg-slate-950/40">
+      <div className="mb-3 flex justify-end">
+        <button type="button" onClick={() => activationDialog.current?.close()}
+          className="rounded-lg px-3 py-2 text-sm font-semibold text-[#005d50] hover:bg-slate-100">
+          Fechar
         </button>
       </div>
+      {activated ? <p role="status" className="px-3 py-2 text-sm text-[#005d50]">
+        Perfil autônomo ativado.
+      </p> : session?.podeAtivarAutonomo && <ActivateIndependentForm onActivated={() => setActivated(true)} />}
+    </dialog>
 
-      {menuOpen && (
-        <nav className="space-y-1 border-t border-slate-100 bg-white px-5 py-4 md:hidden">
-          {accountLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              onClick={() => setMenuOpen(false)}
-              className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              {link.label}
-            </Link>
-          ))}
-          <button type="button" className="w-full px-3 py-2.5 text-left text-sm font-medium text-[#176A5B]">
-            Trocar perfil
-          </button>
-        </nav>
-      )}
-    </header>
-  );
+  </>;
 }

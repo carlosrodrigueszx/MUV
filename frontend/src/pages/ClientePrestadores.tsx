@@ -1,8 +1,6 @@
+import { AccountNavbar } from "../features/freight-history/components/AccountNavbar";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import bellIcon from "../assets/figma/bell.svg";
-import chevronDownIcon from "../assets/figma/chevron-down.svg";
-import routeIcon from "../assets/figma/route.svg";
 import {
   searchProviders,
   type FreightModality,
@@ -205,100 +203,7 @@ function ProviderResults({ state }: { state: TripNavigationState | null }) {
 
   return (
     <div className="min-h-screen bg-[#f5f7f8] text-[#1d2d32] [font-family:Inter,'Noto_Sans',Arial,sans-serif]">
-      <header className="sticky top-0 z-20 h-20 border-b border-[#dfe6e7] bg-white">
-        <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between px-12 max-md:px-4">
-          <Link to="/" className="flex shrink-0 items-center gap-[9px]">
-            <span className="flex size-8 items-center justify-center rounded-[10px] bg-[#17695b]">
-              <img src={routeIcon} alt="" width={20} height={20} />
-            </span>
-            <span className="text-[25px] font-bold leading-none tracking-[-1px] text-[#104e43]">
-              MUV
-            </span>
-          </Link>
-
-          <nav
-            aria-label="Navegação do passageiro"
-            className="flex h-full shrink-0 items-center gap-9 max-md:hidden"
-          >
-            <Link
-              to="/"
-              className="flex h-full flex-col items-center justify-center"
-            >
-              <span className="flex h-[77px] items-center text-[14px] font-medium leading-[1.45] text-[#637479]">
-                Solicitar frete
-              </span>
-              <span className="h-[3px] w-full bg-transparent" />
-            </Link>
-            <Link
-              to="/cliente/prestadores"
-              aria-current="page"
-              className="flex h-full flex-col items-center justify-center"
-            >
-              <span className="flex h-[77px] items-center text-[14px] font-semibold leading-[1.45] text-[#17695b]">
-                Prestadores
-              </span>
-              <span className="h-[3px] w-full bg-[#17695b]" />
-            </Link>
-            <Link
-              to="/cliente/historico"
-              className="flex h-full flex-col items-center justify-center"
-            >
-              <span className="flex h-[77px] items-center text-[14px] font-medium leading-[1.45] text-[#637479]">
-                Meus fretes
-              </span>
-              <span className="h-[3px] w-full bg-transparent" />
-            </Link>
-          </nav>
-
-          <div className="flex shrink-0 items-center gap-5 max-sm:gap-3">
-            <button
-              type="button"
-              onClick={() =>
-                setFeedback("A troca de perfil ainda não está conectada.")
-              }
-              className="whitespace-nowrap text-[12px] font-medium leading-[1.45] text-[#637479] max-sm:hidden"
-            >
-              Trocar perfil
-            </button>
-            <span className="h-6 w-px bg-[#dfe6e7] max-sm:hidden" />
-            <button
-              type="button"
-              aria-label="Notificações"
-              onClick={() =>
-                setFeedback("As notificações ainda não estão conectadas.")
-              }
-              className="flex size-5 items-center justify-center"
-            >
-              <img src={bellIcon} alt="" width={20} height={20} />
-            </button>
-            <button
-              type="button"
-              aria-label="Perfil de AO"
-              onClick={() =>
-                setFeedback("A troca de perfil ainda não está conectada.")
-              }
-              className="flex size-9 items-center justify-center rounded-full bg-[#e6f2ee] text-[12px] font-semibold leading-[1.45] text-[#17695b]"
-            >
-              AO
-            </button>
-            <button
-              type="button"
-              aria-label="Abrir opções do perfil"
-              onClick={() =>
-                setFeedback("A troca de perfil ainda não está conectada.")
-              }
-              className="flex size-4 items-center justify-center"
-            >
-              <img
-                src={chevronDownIcon}
-                alt=""
-                width={16}
-                height={16}
-              />
-            </button>
-          </div>
-        </div>
-      </header>
+      <AccountNavbar fixed={false} />
 
       <main className={`mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-12 pb-[79px] pt-9 max-lg:px-8 max-md:px-4 max-md:pb-12 max-md:pt-6 ${trip ? "lg:grid lg:grid-cols-[minmax(240px,1fr)_minmax(0,3fr)] lg:items-start" : ""}`}>
         {trip && (
