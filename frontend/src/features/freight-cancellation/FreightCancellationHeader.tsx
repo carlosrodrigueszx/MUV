@@ -26,7 +26,7 @@ export function FreightCancellationHeader({ containerClass, historyRoute, name }
   return (
     <header className="relative z-10 border-b border-[#dfe6e7] bg-white">
       <div className={`${containerClass} grid h-14 grid-cols-[1fr_auto] items-center gap-3 lg:h-[74px] lg:grid-cols-[1fr_auto_1fr]`}>
-        <Link to={historyRoute.startsWith("/prestador/") ? "/prestador/solicitacoes" : "/cliente/planejar-viagem"} className="flex w-fit items-center gap-2 text-[#104e43]" aria-label="Página inicial MUV">
+        <Link to={historyRoute.startsWith("/prestador/") ? "/prestador" : "/cliente/planejar-viagem"} className="flex w-fit items-center gap-2 text-[#104e43]" aria-label="Página inicial MUV">
           <span className="grid size-8 place-items-center rounded-[9px] bg-[#17695b]">
             <img src={routeIcon} alt="" width={20} height={20} />
           </span>

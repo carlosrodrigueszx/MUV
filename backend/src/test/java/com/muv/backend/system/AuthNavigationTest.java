@@ -45,8 +45,15 @@ class AuthNavigationTest {
             wait.until(ExpectedConditions.urlToBe(planner));
             wait.until(ExpectedConditions.visibilityOfElementLocated(
                     By.xpath("//h2[normalize-space()='Defina seu roteiro']")));
-            wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("a[aria-label='Minha conta']"))).click();
-            wait.until(ExpectedConditions.urlToBe(base + "/conta"));
+            wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("summary[aria-label='Menu da conta']"))).click();
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//p[normalize-space()='Minha conta']")));
+            wait.until(ExpectedConditions.elementToBeClickable(
+                    By.xpath("//button[normalize-space()='Seja motorista']"))).click();
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("dialog[open] input[name='cnh']")));
+            wait.until(ExpectedConditions.elementToBeClickable(
+                    By.xpath("//dialog//button[normalize-space()='Fechar']"))).click();
+            wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("summary[aria-label='Menu da conta']"))).click();
+            wait.until(ExpectedConditions.urlToBe(planner));
             wait.until(ExpectedConditions.elementToBeClickable(
                     By.xpath("//button[normalize-space()='Sair']"))).click();
             wait.until(ExpectedConditions.urlToBe(base + "/entrar"));

@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ProviderLayout } from "../../components/layout/ProviderLayout";
 
-type Item = {
+export type Item = {
   id: number; modalidade: "PESSOA" | "ENCOMENDA"; partida: string;
   origemCidade: string; origemEstado: string; destinoCidade: string; destinoEstado: string;
   passageiros: number | null; pesoKg: number | null; volumes: string | null; volumeM3: number | null;

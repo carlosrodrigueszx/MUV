@@ -15,8 +15,8 @@ export function AccountNavbar({ currentSession, fixed = true }: {
   const session = currentSession ?? loadedSession;
   const portalHome = session === null ? "/"
     : session?.passageiro || session === undefined ? "/cliente/planejar-viagem"
-    : session.prestador ? "/prestador/solicitacoes"
-    : session.motorista ? "/motorista/achados-perdidos" : "/conta";
+    : session.prestador ? "/prestador"
+    : session.motorista ? "/motorista" : "/conta";
   const links = [
     { label: "Planejar viagem", to: "/cliente/planejar-viagem" },
     { label: "Prestadores", to: "/cliente/prestadores" },
@@ -64,7 +64,7 @@ export function AccountNavbar({ currentSession, fixed = true }: {
           <button type="button" aria-label="Notificações" disabled className="grid size-5 place-items-center">
             <img src={bellIcon} alt="" width={20} height={20} />
           </button>
-          <AccountMenu session={session} menuRef={accountMenu} />
+          <AccountMenu session={session} menuRef={accountMenu} showProfessionalPortal />
         </div>
       </nav>
     </header>

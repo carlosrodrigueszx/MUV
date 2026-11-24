@@ -65,8 +65,8 @@ export default function PlanejarViagem() {
   }
 
   if (!session.passageiro) {
-    const destination = session.prestador ? "/prestador/solicitacoes"
-      : session.motorista ? "/motorista/achados-perdidos" : "/conta";
+    const destination = session.prestador ? "/prestador"
+      : session.motorista ? "/motorista" : "/conta";
     return <Navigate to={destination} replace />;
   }
 

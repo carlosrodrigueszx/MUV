@@ -51,7 +51,7 @@ class VehicleManagementSystemTest {
             driver.findElement(By.name("senha")).sendKeys(password);
             driver.findElement(By.cssSelector("form button:not([type='button'])")).click();
             wait.until(org.openqa.selenium.support.ui.ExpectedConditions.urlToBe(
-                    base + "/cliente/planejar-viagem"));
+                    base + "/prestador"));
             driver.get(base + "/prestador/veiculos");
             wait.until(visibilityOfElementLocated(By.xpath("//h1[normalize-space()='Gestão de veículos']")));
 

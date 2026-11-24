@@ -5,10 +5,11 @@ import chevronDownIcon from "../../assets/figma/chevron-down.svg";
 import { Avatar } from "../../components/ui/Avatar";
 import { authPost, type Session } from "./api";
 
-export function AccountMenu({ session, menuRef, avatarUrl }: {
+export function AccountMenu({ session, menuRef, avatarUrl, showProfessionalPortal = false }: {
   session: Session | null | undefined;
   menuRef?: Ref<HTMLDetailsElement>;
   avatarUrl?: string | null;
+  showProfessionalPortal?: boolean;
 }) {
   const navigate = useNavigate();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -46,6 +47,18 @@ export function AccountMenu({ session, menuRef, avatarUrl }: {
           <p className="break-all text-xs text-slate-600">{session.email}</p>
         </div>
         <div className="p-1.5">
+          {showProfessionalPortal && session.passageiro && session.motorista && (
+            <Link to="/motorista"
+              className="flex min-h-11 items-center rounded-lg px-2.5 text-sm font-semibold text-[#005d50] hover:bg-[#edf6f2]">
+              Ir para o portal do motorista
+            </Link>
+          )}
+          {showProfessionalPortal && session.passageiro && session.prestador && (
+            <Link to="/prestador"
+              className="flex min-h-11 items-center rounded-lg px-2.5 text-sm font-semibold text-[#005d50] hover:bg-[#edf6f2]">
+              {session.empresa ? "Ir para o portal da empresa" : "Ir para o portal do prestador"}
+            </Link>
+          )}
           <button type="button" onClick={logout} disabled={loggingOut}
             className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-sm font-semibold text-[#005d50] hover:bg-[#edf6f2] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#005d50] disabled:opacity-60">
             <LuLogOut aria-hidden="true" size={16} />

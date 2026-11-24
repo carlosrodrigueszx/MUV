@@ -35,6 +35,11 @@ public final class AuthRequests {
             @NotBlank @Pattern(regexp = "A|B|C|D|E|AB|AC|AD|AE") String categoriaCnh,
             @AssertTrue @NotNull Boolean declarouConformidade) {}
 
+    public record IndependentActivation(
+            @NotBlank @Pattern(regexp = "[0-9]{11}") String cnh,
+            @NotBlank @Pattern(regexp = "A|B|C|D|E|AB|AC|AD|AE") String categoriaCnh,
+            @AssertTrue @NotNull Boolean declarouConformidade) {}
+
     public record Recovery(@NotBlank @Email @Size(max = 255) String email) {}
 
     public record Reset(

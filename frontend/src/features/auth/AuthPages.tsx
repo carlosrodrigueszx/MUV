@@ -127,8 +127,8 @@ export function LoginPage() {
     if (!account) throw new Error("Não foi possível confirmar a sessão. Entre novamente.");
 
     let destination = "/cliente/planejar-viagem";
-    if (account.prestador) destination = "/prestador/solicitacoes";
-    else if (account.motorista) destination = "/motorista/achados-perdidos";
+    if (account.prestador) destination = "/prestador";
+    else if (account.motorista) destination = "/motorista";
     navigate(destination, { replace: true });
   });
 

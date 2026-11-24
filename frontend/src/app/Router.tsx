@@ -1,4 +1,5 @@
 import React from "react";
+import PortalOverview from "../pages/PortalOverview";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import {
   AccountPage,
@@ -37,6 +38,8 @@ export const Router: React.FC = () => {
         <Route path="/fretes/:freteId/cancelar" element={<FreightCancellationPage />} />
         <Route path="/conta" element={<AccountPage />} />
         <Route path="/prestador/solicitacoes/:id/avaliacao" element={<PaginaAvaliacao />} />
+        <Route path="/prestador" element={<PortalOverview />} />
+        <Route path="/motorista" element={<PortalOverview driver />} />
         <Route path="/prestador/solicitacoes" element={<Disponiveis />} />
         <Route path="/prestador/veiculos" element={<Vehicles />} />
         <Route path="/prestador/motoristas" element={<DriverLinking />} />
