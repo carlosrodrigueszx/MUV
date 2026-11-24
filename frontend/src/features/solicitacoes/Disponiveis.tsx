@@ -63,7 +63,6 @@ export default function Disponiveis() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [regioesDisponiveis, setRegioesDisponiveis] = useState<string[]>([]);
-  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     const abort = new AbortController();
@@ -79,7 +78,6 @@ export default function Disponiveis() {
       if (abort.signal.aborted) return;
       setItens(lista);
       if (query === "modalidade=TODAS") {
-        setTotal(lista.length);
         setRegioesDisponiveis([...new Set(lista.map(i => i.origemCidade + "/" + i.origemEstado))].sort());
       }
       setErro("");
@@ -104,7 +102,7 @@ export default function Disponiveis() {
     if (query !== params.toString()) { setCarregando(true); setQuery(params.toString()); }
   }
 
-  return <ProviderLayout passengerPortalHref="/cliente/planejar-viagem" pageTitle="Solicitações abertas" activeNavKey="requests" organizationName={perfil?.nome} profileLabel={perfil?.tipo ?? "Prestador"} isOnline={null} navBadges={{requests: total}}>
+  return <ProviderLayout passengerPortalHref="/cliente/planejar-viagem" pageTitle="Solicitações abertas" activeNavKey="requests" organizationName={perfil?.nome} profileLabel={perfil?.tipo ?? "Prestador"} isOnline={null}>
     <div className="space-y-6 text-[#1d2d32]">
       <h1 className="text-[30px] leading-[1.45] font-bold tracking-tight">Solicitações disponíveis na sua região</h1>
       <p className="text-sm text-[#637479]">Apresente propostas apenas nas modalidades para as quais você está autorizado.</p>

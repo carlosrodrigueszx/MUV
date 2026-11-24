@@ -11,10 +11,15 @@ export function Percurso({ dados, rota }: { dados: Avaliacao; rota: Rota | null 
     if (!container.current || !rota) return;
     const mapa = L.map(container.current, { zoomControl: false });
     L.control.zoom({ position: "topright", zoomInTitle: "Ampliar mapa", zoomOutTitle: "Reduzir mapa" }).addTo(mapa);
-    L.tileLayer(import.meta.env.VITE_RF007_TILES || "https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
-    }).addTo(mapa);
+    const tileUrl = import.meta.env.VITE_RF007_TILES;
+    if (tileUrl) {
+      const base = L.tileLayer(tileUrl, {
+        attribution: import.meta.env.VITE_RF007_TILES_ATTRIBUTION,
+        maxZoom: 19,
+      });
+      base.once("tileerror", () => base.remove());
+      base.addTo(mapa);
+    }
     const limites = L.latLngBounds([]);
     if (rota.geometria.length) {
       const linha = rota.geometria.map(c => L.latLng(c.latitude, c.longitude));

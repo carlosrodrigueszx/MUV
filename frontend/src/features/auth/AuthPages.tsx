@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type ComponentProps, type FormEvent, type ReactNode } from "react";
+import { AccountNavbar } from "../freight-history/components/AccountNavbar";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LuArrowRight, LuBus, LuEye, LuEyeOff, LuLockKeyhole, LuMail, LuUserRound } from "react-icons/lu";
 import { authPost, getSession, type Session } from "./api";
@@ -226,7 +227,8 @@ function ProviderRegistrationFields({ company, active }: { company: boolean; act
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const [provider, setProvider] = useState(false);
+  const { search } = useLocation();
+  const [provider, setProvider] = useState(() => new URLSearchParams(search).get("perfil") === "empresa");
   const [company, setCompany] = useState(true);
   const profile = provider ? company ? "empresa" : "autonomo" : "passageiro";
   const [submittedProfile, setSubmittedProfile] = useState<typeof profile>();
@@ -362,33 +364,38 @@ export function ResetPage() {
   </AuthCard>;
 }
 
-export function ActivateIndependentForm({ onActivated }: { onActivated: () => void }) {
+export function ActivateIndependentForm({ onActivated }: { onActivated: () => Promise<void> }) {
   const { busy, error, handleSubmit } = useSubmit(async values => {
     await authPost("perfil/autonomo", {
       cnh: values.cnh,
       categoriaCnh: values.categoriaCnh,
       declarouConformidade: values.declarouConformidade === "on",
     });
-    onActivated();
+    await onActivated();
   });
-  return <form className="space-y-3 rounded-lg border border-slate-200 p-4" onSubmit={handleSubmit}>
-    <h2 className="font-semibold">Atuar como prestador autônomo</h2>
-    <p className="text-sm text-slate-600">Use a mesma conta de passageiro. A ativação do perfil não concede autorização para oferecer fretes.</p>
+  return <form id="seja-motorista" className="scroll-mt-4 space-y-3" onSubmit={handleSubmit}>
+    <h2 className="font-semibold">Atuar como motorista autônomo</h2>
+    <p className="text-sm text-slate-600">Ative o perfil na sua conta de passageiro. Para oferecer fretes, a modalidade precisa de aprovação.</p>
     <div className="grid gap-3 sm:grid-cols-2"><LicenseFields /></div>
     <div className="text-sm text-slate-700"><ComplianceCheckbox /></div>
     <Feedback error={error} />
-    <button className={buttonStyle} disabled={busy}>{busy ? "Ativando…" : "Ativar perfil autônomo"}</button>
+    <button className={buttonStyle} disabled={busy}>{busy ? "Ativando…" : "Ativar perfil de motorista"}</button>
   </form>;
 }
 
 export function AccountPage() {
   const navigate = useNavigate();
+  const { hash } = useLocation();
   const [session, setSession] = useState<Session>();
   const [sessionError, setSessionError] = useState("");
   const [activated, setActivated] = useState(false);
+  const [authorization, setAuthorization] = useState<{ modalities: string[]; regions: string[] }>();
+  const [authorizationError, setAuthorizationError] = useState(false);
+
   useEffect(() => {
     const abort = new AbortController();
     getSession(abort.signal).then(account => {
+      if (abort.signal.aborted) return;
       if (account) setSession(account);
       else navigate("/entrar", { replace: true });
     }).catch(() => {
@@ -396,19 +403,103 @@ export function AccountPage() {
     });
     return () => abort.abort();
   }, [navigate]);
+
+  useEffect(() => {
+    if (!session?.prestador) return;
+    const abort = new AbortController();
+    fetch("/api/prestador/solicitacoes/perfil", { signal: abort.signal, cache: "no-store" })
+      .then(async response => {
+        if (!response.ok) throw new Error();
+        const profile = await response.json() as { modalidades: string[]; regioes: string[] };
+        if (!abort.signal.aborted) setAuthorization({ modalities: profile.modalidades, regions: profile.regioes });
+      }).catch(() => {
+        if (!abort.signal.aborted) setAuthorizationError(true);
+      });
+    return () => abort.abort();
+  }, [session?.id, session?.prestador]);
+
+  useEffect(() => {
+    if (hash === "#seja-motorista" && session?.podeAtivarAutonomo) {
+      document.getElementById("seja-motorista")?.scrollIntoView();
+    }
+  }, [hash, session?.podeAtivarAutonomo]);
+
   const { busy, error, handleSubmit } = useSubmit(async () => {
     await authPost("logout");
     navigate("/entrar", { replace: true });
   });
-  return <AuthCard title="Sua conta MUV" intro={session ? `Olá, ${session.nome}.` : sessionError ? "" : "Verificando sessão…"}>
-    <Feedback error={sessionError || error} />
-    {session && <div className="space-y-4">
-      <p>{session.email}</p>
-      {activated && <p role="status" className={successStyle}>Perfil autônomo ativado na sua conta.</p>}
-      {session.podeAtivarAutonomo && !activated && <ActivateIndependentForm onActivated={() => setActivated(true)} />}
-      <form onSubmit={handleSubmit}>
-        <button className={secondaryButtonStyle} disabled={busy}>Sair</button>
-      </form>
-    </div>}
-  </AuthCard>;
+
+  async function refreshProfile() {
+    const account = await getSession(AbortSignal.timeout(10000));
+    if (!account) {
+      navigate("/entrar", { replace: true });
+      return;
+    }
+    setSession(account);
+    setActivated(true);
+  }
+
+  const driver = session?.motorista || (session?.prestador && !session.empresa);
+  const panel = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6";
+  return <div className="min-h-screen bg-[#f5f7f8] text-[#1d2d32]">
+    <AccountNavbar currentSession={session} fixed={false} />
+    <main className="mx-auto max-w-6xl px-4 py-7 sm:px-8">
+      <h1 className="text-2xl font-bold sm:text-3xl">Sua conta, seus perfis</h1>
+      <Feedback error={sessionError || error} />
+      {!session && !sessionError && <p role="status" className="mt-4">Verificando sessão…</p>}
+      {session && <>
+        {activated && <p role="status" className={`mt-4 ${successStyle}`}>Perfil de motorista ativado.</p>}
+        <div className="mt-5 grid gap-5 md:grid-cols-2">
+          <div className="min-w-0 space-y-5">
+            <section className={panel} aria-labelledby="dados-da-conta">
+              <h2 id="dados-da-conta" className="text-lg font-semibold">Conta de {session.nome}</h2>
+              <dl className="mt-3 text-sm">
+                <dt className="text-slate-600">E-mail de acesso</dt>
+                <dd className="mt-1 break-words rounded-lg bg-slate-100 p-3">{session.email}</dd>
+              </dl>
+              {session.passageiro && <div className="mt-4">
+                <p className="mb-2 text-sm font-semibold text-[#005d50]">Perfil de passageiro ativo</p>
+                <Link className={`inline-block ${buttonStyle}`} to="/cliente/planejar-viagem">Acessar como passageiro</Link>
+              </div>}
+              <form className="mt-4" onSubmit={handleSubmit}>
+                <button className={secondaryButtonStyle} disabled={busy}>{busy ? "Saindo…" : "Sair"}</button>
+              </form>
+            </section>
+            {session.podeAtivarAutonomo && <section className={panel}>
+              <ActivateIndependentForm onActivated={refreshProfile} />
+            </section>}
+          </div>
+          <div className="min-w-0 space-y-5">
+            {session.prestador && <section className={panel} aria-labelledby="autorizacoes">
+              <h2 id="autorizacoes" className="text-lg font-semibold">Minhas autorizações</h2>
+              {authorizationError ? <p role="alert" className="mt-3 text-sm text-red-800">Não foi possível consultar as autorizações.</p>
+                : !authorization ? <p role="status" className="mt-3 text-sm">Carregando autorizações…</p>
+                : <ul className="mt-3 space-y-2">
+                  {[["PESSOA", "Pessoas"], ["ENCOMENDA", "Encomendas"]].map(([key, label]) => {
+                    const approved = authorization.modalities.includes(key);
+                    return <li key={key} className={`rounded-lg p-3 text-sm ${approved ? "bg-[#e5f2ed]" : "bg-slate-100"}`}>
+                      <strong>{label}</strong> · {approved ? "Autorizado" : "Sem autorização aprovada"}
+                    </li>;
+                  })}
+                </ul>}
+              {authorization && authorization.regions.length > 0 && <p className="mt-3 text-sm text-slate-600">
+                Regiões atendidas: {authorization.regions.join(", ")}
+              </p>}
+              {driver && <Link className={`mt-4 inline-block ${buttonStyle}`} to="/motorista">Acessar como motorista</Link>}
+              {session.empresa && <Link className={`mt-4 inline-block ${buttonStyle}`} to="/prestador">Acessar portal da empresa</Link>}
+            </section>}
+            {driver && !session.prestador && <section className={panel}>
+              <h2 className="text-lg font-semibold">Perfil de motorista vinculado</h2>
+              <Link className={`mt-3 inline-block ${buttonStyle}`} to="/motorista">Acessar como motorista</Link>
+            </section>}
+            {session.passageiro && !session.empresa && <section className={panel}>
+              <h2 className="text-lg font-semibold">Cadastro de empresa</h2>
+              <p className="mt-2 text-sm text-slate-600">O cadastro de empresa usa um e-mail próprio.</p>
+              <Link className={`mt-3 inline-block ${secondaryButtonStyle}`} to="/cadastro?perfil=empresa">Cadastrar empresa</Link>
+            </section>}
+          </div>
+        </div>
+      </>}
+    </main>
+  </div>;
 }

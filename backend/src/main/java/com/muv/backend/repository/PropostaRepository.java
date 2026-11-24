@@ -45,7 +45,7 @@ public class PropostaRepository {
                 rs.getString("instrucoes_entrega"), rs.getBigDecimal("valor_cliente"), rs.getString("condicoes_cliente"), rs.getString("justificativa"), paradas(solicitacao),
                 rs.getString("mapa_caminho"), rs.getBigDecimal("percurso_km"),
                 rs.getObject("deslocamento_minutos", Integer.class), rs.getObject("duracao_minutos", Integer.class),
-                propostaEnviada(solicitacao, prestador)),
+                propostaEnviada(solicitacao, prestador), rs.getObject("retorno_previsto", LocalDateTime.class)),
                 rs.getLong("id_passageiro")), prestador, solicitacao).stream().findFirst();
     }
 

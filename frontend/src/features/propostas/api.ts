@@ -4,6 +4,7 @@ export type Avaliacao = {
   status: string;
   cliente: string;
   partida: string;
+  retornoPrevisto?: string | null;
   origem: string;
   destino: string;
   passageiros: number | null;

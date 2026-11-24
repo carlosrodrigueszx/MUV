@@ -89,7 +89,6 @@ export default function PortalOverview({ driver = false }: { driver?: boolean })
 
   return <ProviderLayout pageTitle="Visão geral" activeNavKey="overview" isOnline={null}
     organizationName={session?.nome} profileLabel={driver ? "Motorista" : "Empresa"}
-    navBadges={requests ? { requests: requests.length } : undefined}
     portalLabel={driver ? "PORTAL DO MOTORISTA" : undefined} areaLabel={driver ? "Área do motorista" : undefined}>
     {sessionError ? <p role="alert">{sessionError}</p> : !session ? <p role="status">Verificando sessão…</p>
       : !allowed ? <p role="alert">Esta conta não tem acesso a este portal.</p> : (

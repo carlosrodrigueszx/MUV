@@ -1,9 +1,8 @@
 import { AccountMenu } from "../../auth/AccountMenu";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import bellIcon from "../../../assets/figma/bell.svg";
 import routeIcon from "../../../assets/figma/route.svg";
-import { ActivateIndependentForm } from "../../auth/AuthPages";
 import { getSession, readRecentSession, type Session } from "../../auth/api";
 
 export function AccountNavbar({ currentSession, fixed = true }: {
@@ -22,10 +21,6 @@ export function AccountNavbar({ currentSession, fixed = true }: {
     { label: "Prestadores", to: "/cliente/prestadores" },
     { label: "Meus fretes", to: pathname.startsWith("/prestador/") ? "/prestador/historico" : "/cliente/historico" },
   ];
-  const accountMenu = useRef<HTMLDetailsElement>(null);
-  const activationDialog = useRef<HTMLDialogElement>(null);
-  const [activated, setActivated] = useState(false);
-
   useEffect(() => {
     if (currentSession) return;
     const controller = new AbortController();
@@ -54,33 +49,20 @@ export function AccountNavbar({ currentSession, fixed = true }: {
           ))}
         </div>
         <div className="col-start-2 row-start-1 flex items-center justify-self-end gap-3 sm:gap-5 lg:col-start-3">
-          {session?.podeAtivarAutonomo && !activated && <button type="button"
-            className="whitespace-nowrap text-xs font-medium text-[#5c717a] hover:text-[#005d50]"
-            onClick={() => {
-              if (accountMenu.current) accountMenu.current.open = false;
-              activationDialog.current?.showModal();
-            }}>Seja motorista</button>}
+          {session?.podeAtivarAutonomo && pathname !== "/conta" && (
+            <Link to="/conta#seja-motorista"
+              className="whitespace-nowrap text-xs font-medium text-[#5c717a] hover:text-[#005d50]">
+              Seja motorista
+            </Link>
+          )}
           <span className="h-6 w-px bg-[#dfe6e7]" aria-hidden="true" />
           <button type="button" aria-label="Notificações" disabled className="grid size-5 place-items-center">
             <img src={bellIcon} alt="" width={20} height={20} />
           </button>
-          <AccountMenu session={session} menuRef={accountMenu} showProfessionalPortal />
+          <AccountMenu session={session} showProfessionalPortal />
         </div>
       </nav>
     </header>
-
-    <dialog ref={activationDialog} aria-label="Seja motorista"
-      className="m-auto max-h-[85dvh] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-xl bg-white p-4 shadow-xl backdrop:bg-slate-950/40">
-      <div className="mb-3 flex justify-end">
-        <button type="button" onClick={() => activationDialog.current?.close()}
-          className="rounded-lg px-3 py-2 text-sm font-semibold text-[#005d50] hover:bg-slate-100">
-          Fechar
-        </button>
-      </div>
-      {activated ? <p role="status" className="px-3 py-2 text-sm text-[#005d50]">
-        Perfil autônomo ativado.
-      </p> : session?.podeAtivarAutonomo && <ActivateIndependentForm onActivated={() => setActivated(true)} />}
-    </dialog>
 
   </>;
 }

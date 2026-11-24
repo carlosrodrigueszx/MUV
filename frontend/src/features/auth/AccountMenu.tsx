@@ -47,6 +47,10 @@ export function AccountMenu({ session, menuRef, avatarUrl, showProfessionalPorta
           <p className="break-all text-xs text-slate-600">{session.email}</p>
         </div>
         <div className="p-1.5">
+          <Link to="/conta" onClick={event => event.currentTarget.closest("details")?.removeAttribute("open")}
+            className="flex min-h-11 items-center rounded-lg px-2.5 text-sm font-semibold text-[#005d50] hover:bg-[#edf6f2]">
+            Meu perfil
+          </Link>
           {showProfessionalPortal && session.passageiro && (session.motorista || (session.prestador && !session.empresa)) && (
             <Link to="/motorista"
               className="flex min-h-11 items-center rounded-lg px-2.5 text-sm font-semibold text-[#005d50] hover:bg-[#edf6f2]">
