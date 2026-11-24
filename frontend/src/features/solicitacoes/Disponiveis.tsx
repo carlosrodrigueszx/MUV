@@ -47,7 +47,7 @@ function Cartao({ item, nome }: { item: Item; nome?: string }) {
       <p className="text-[13px] text-[#637479]">{resumo.join(" · ")}</p>
       <p className="text-[13px] font-semibold text-[#17695b]">{status.join(" · ")}</p>
     </div>
-    {item.autorizada ? <Link className={botao + " shrink-0 self-start lg:self-center"} to={`/prestador/solicitacoes/${item.id}/avaliacao`}>Ver e apresentar proposta</Link>
+    {item.autorizada ? <Link className={botao + " shrink-0 self-start lg:self-center"} to={`${item.id}/avaliacao`}>Ver e apresentar proposta</Link>
       : <span className="text-sm text-[#637479]">Modalidade não autorizada</span>}
   </article>;
 }

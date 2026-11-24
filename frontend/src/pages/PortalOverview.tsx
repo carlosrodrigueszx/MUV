@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
-import { LuArchive, LuArrowRight, LuCalendarDays, LuCircleCheck, LuLayoutDashboard, LuRoute, LuStar, LuWallet } from "react-icons/lu";
+import { Link, Navigate, useLocation } from "react-router-dom";
+import { LuArrowRight, LuCalendarDays, LuCircleCheck, LuRoute, LuStar, LuWallet } from "react-icons/lu";
 import { ProviderLayout } from "../components/layout/ProviderLayout";
-import type { ProviderNavItem } from "../components/layout/providerNav";
 import { getSession, readRecentSession, type Session } from "../features/auth/api";
 import type { Item } from "../features/solicitacoes/Disponiveis";
 
@@ -15,10 +14,6 @@ type Overview = {
   upcoming: { departure: string; origin: string; destination: string }[];
 };
 
-const driverNav: ProviderNavItem[] = [
-  { key: "overview", label: "Visão geral", to: "/motorista", icon: LuLayoutDashboard },
-  { key: "lost-found", label: "Achados e perdidos", to: "/motorista/achados-perdidos", icon: LuArchive },
-];
 const box = "min-w-0 rounded-2xl border border-[#dfe6e7] bg-white p-5 shadow-sm";
 const action = "inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#dfe6e7] bg-white px-3 text-sm font-semibold text-[#17695b] hover:bg-[#e5f2ee]";
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -38,7 +33,16 @@ export default function PortalOverview({ driver = false }: { driver?: boolean })
   const [sessionError, setSessionError] = useState("");
   const [overviewError, setOverviewError] = useState("");
   const [requestsError, setRequestsError] = useState("");
-  const allowed = driver ? session?.motorista : session?.prestador;
+  const allowed = driver
+    ? session?.motorista || (session?.prestador && !session.empresa)
+    : session?.empresa;
+  const { hash, key: locationKey } = useLocation();
+
+  useEffect(() => {
+    if (allowed && hash === "#agenda") {
+      document.getElementById("agenda")?.scrollIntoView();
+    }
+  }, [allowed, hash, locationKey, overview]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -68,6 +72,10 @@ export default function PortalOverview({ driver = false }: { driver?: boolean })
 
   if (session === null) return <Navigate to="/entrar" replace />;
 
+  if (!driver && session && !session.empresa && (session.motorista || session.prestador)) {
+    return <Navigate to="/motorista" replace />;
+  }
+
   const metrics = [
     { label: "Fretes concluídos no mês", value: overview?.completed, icon: LuCircleCheck },
     { label: "Fretes ativos", value: overview?.active, icon: LuRoute },
@@ -80,8 +88,8 @@ export default function PortalOverview({ driver = false }: { driver?: boolean })
   const hasActivity = overview?.chart.some(item => item.completed > 0);
 
   return <ProviderLayout pageTitle="Visão geral" activeNavKey="overview" isOnline={null}
-    organizationName={session?.nome} profileLabel={driver ? "Motorista" : session?.empresa ? "Empresa" : "Prestador"}
-    navItems={driver ? driverNav : undefined} navBadges={requests ? { requests: requests.length } : undefined}
+    organizationName={session?.nome} profileLabel={driver ? "Motorista" : "Empresa"}
+    navBadges={requests ? { requests: requests.length } : undefined}
     portalLabel={driver ? "PORTAL DO MOTORISTA" : undefined} areaLabel={driver ? "Área do motorista" : undefined}>
     {sessionError ? <p role="alert">{sessionError}</p> : !session ? <p role="status">Verificando sessão…</p>
       : !allowed ? <p role="alert">Esta conta não tem acesso a este portal.</p> : (
@@ -93,7 +101,7 @@ export default function PortalOverview({ driver = false }: { driver?: boolean })
             </p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Olá, {session.nome}!</h1>
           </div>
-          <a href="#agenda" className={action}><LuCalendarDays aria-hidden size={16} />Ver agenda</a>
+          <Link to="#agenda" className={action}><LuCalendarDays aria-hidden size={16} />Ver agenda</Link>
         </div>
 
         {overviewError && <p role="alert" className={box}>{overviewError}</p>}

@@ -47,16 +47,16 @@ export function AccountMenu({ session, menuRef, avatarUrl, showProfessionalPorta
           <p className="break-all text-xs text-slate-600">{session.email}</p>
         </div>
         <div className="p-1.5">
-          {showProfessionalPortal && session.passageiro && session.motorista && (
+          {showProfessionalPortal && session.passageiro && (session.motorista || (session.prestador && !session.empresa)) && (
             <Link to="/motorista"
               className="flex min-h-11 items-center rounded-lg px-2.5 text-sm font-semibold text-[#005d50] hover:bg-[#edf6f2]">
               Ir para o portal do motorista
             </Link>
           )}
-          {showProfessionalPortal && session.passageiro && session.prestador && (
+          {showProfessionalPortal && session.passageiro && session.empresa && (
             <Link to="/prestador"
               className="flex min-h-11 items-center rounded-lg px-2.5 text-sm font-semibold text-[#005d50] hover:bg-[#edf6f2]">
-              {session.empresa ? "Ir para o portal da empresa" : "Ir para o portal do prestador"}
+              Ir para o portal da empresa
             </Link>
           )}
           <button type="button" onClick={logout} disabled={loggingOut}

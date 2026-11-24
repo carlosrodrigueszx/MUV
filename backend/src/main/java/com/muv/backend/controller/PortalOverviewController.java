@@ -36,10 +36,12 @@ public class PortalOverviewController {
         long id = accounts.findAccount(principal.getName())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED)).id();
         var profiles = accounts.profiles(id);
-        boolean provider = portal == Portal.PRESTADOR;
-        if (provider ? !profiles.prestador() : !profiles.motorista()) {
+        boolean autonomous = profiles.prestador() && !profiles.empresa();
+        boolean companyPortal = portal == Portal.PRESTADOR;
+        if (companyPortal ? !profiles.empresa() : !(profiles.motorista() || autonomous)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
+        boolean provider = companyPortal || autonomous;
 
         var now = LocalDateTime.now(clock);
         var month = YearMonth.from(now);

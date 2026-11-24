@@ -15,8 +15,8 @@ export function AccountNavbar({ currentSession, fixed = true }: {
   const session = currentSession ?? loadedSession;
   const portalHome = session === null ? "/"
     : session?.passageiro || session === undefined ? "/cliente/planejar-viagem"
-    : session.prestador ? "/prestador"
-    : session.motorista ? "/motorista" : "/conta";
+    : session.empresa ? "/prestador"
+    : session.motorista || session.prestador ? "/motorista" : "/conta";
   const links = [
     { label: "Planejar viagem", to: "/cliente/planejar-viagem" },
     { label: "Prestadores", to: "/cliente/prestadores" },
