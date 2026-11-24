@@ -210,6 +210,24 @@ class TransicaoFreteIntegrationTest {
     }
 
     @Test
+    void localEHorarioCivilFicamNoAcompanhamentoAutorizado() throws Exception {
+        var motorista = entrar("atual");
+        var rota = ROTA + "/ocorrencias";
+        var comando = dados(UUID.randomUUID()).replace("justificativa", "descricao")
+                .replace("}", ", \"localOcorrencia\":\"Km 44\"}");
+        var original = enviarComando(rota, motorista, comando, 200).getResponse().getContentAsString();
+        assertThat(enviarComando(rota, motorista, comando, 200).getResponse().getContentAsString()).isEqualTo(original);
+        enviarComando(rota, motorista, comando.replace("Km 44", "Km 45"), 409);
+        mvc.perform(get(ROTA).session(motorista.session())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventos[0].localOcorrencia").value("Km 44"))
+                .andExpect(jsonPath("$.eventos[0].horarioInformado").value("2000-01-02T09:15:00"))
+                .andExpect(jsonPath("$.eventos[0].horarioRegistro").isNotEmpty());
+        var historico = mvc.perform(get("/api/historico-fretes").param("perfil", "CLIENTE")
+                        .session(entrar("cliente").session())).andExpect(status().isOk()).andReturn();
+        assertThat(historico.getResponse().getContentAsString()).doesNotContain("Km 44");
+    }
+
+    @Test
     void ocorrenciasComMesmoConteudoDistinguemReenvioDeNovaConfirmacao() throws Exception {
         var sessao = entrar("atual");
         String rota = ROTA + "/ocorrencias";
@@ -500,7 +518,7 @@ class TransicaoFreteIntegrationTest {
                 .andExpect(jsonPath("$.estado").value("ENCERRADO_SEM_CONCLUSAO"))
                 .andExpect(jsonPath("$.eventos[0].tipo").value("ENCERRAMENTO_SEM_CONCLUSAO"))
                 .andExpect(jsonPath("$.acoesElegiveis").isEmpty()).andReturn();
-        assertThat(consulta.getResponse().getContentAsString()).doesNotContain("No veículo");
+        assertThat(consulta.getResponse().getContentAsString()).contains("No veículo");
         var historico = mvc.perform(get("/api/historico-fretes").session(entrar("cliente").session())
                         .param("perfil", "CLIENTE"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();

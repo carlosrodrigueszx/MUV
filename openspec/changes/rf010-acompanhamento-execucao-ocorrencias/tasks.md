@@ -7,7 +7,7 @@ Esta lista acompanha a implementação de `specs/acompanhamento-execucao-ocorren
 - [x] 1.1 Antes de implementar, reler `AGENTS.md`, proposta, design e especificação e obter autorização para o escopo de implementação, inclusive backend; verificar que a autorização cobre RF010 e registrar os limites no relatório futuro.
 - [x] 1.2 Conferir branch, status, worktrees, commits, PRs e versões Flyway; verificar os arquivos compartilhados livres ou protegidos e registrar a versão de migração disponível sem alterar trabalho alheio.
 - [x] 1.3 Conferir sessão e contratos de leitura de RF003/RF009 e o bloqueio compartilhado com RF011. Verificar a matriz de estados com dados controlados. Cadastro, designação, substituição, cancelamento e conclusão são dos requisitos responsáveis.
-- [ ] 1.4 Verificar que as referências visuais e as decisões que afetam a tela estão registradas conforme P2, P3 e P6. Comparar campos, confirmações e retornos antes de implementar as partes afetadas.
+- [x] 1.4 Verificar que as referências visuais e as decisões que afetam a tela estão registradas conforme P2, P3 e P6. Comparar campos, confirmações e retornos antes de implementar as partes afetadas. Parte visual comparada com os JPEGs aprovados (P6). P2 e P3 estão definidos no design e verificados na consulta operacional.
 - [x] 1.5 Verificar a dependência do autônomo conforme P7 e registrar quais fluxos estão disponíveis para teste sem alterar RF002/RF009.
 
 ## 2. Persistência do contexto auditável
@@ -17,7 +17,7 @@ Requisitos: preservar histórico e autoria; validar dados temporais; revalidar c
 - [ ] 2.1 Revisar o esquema de histórico, os dados legados e a leitura do RF014 com Josué conforme P5. Registrar o contrato aprovado e a responsabilidade por eventual mudança compartilhada. Encaminhar alterações de RF014 a Josué.
 - [x] 2.2 Criar fixtures e limpeza exclusivas RF010 com pessoas, encomendas, empresa, motorista designado, colega da mesma empresa, motorista externo, contas e estados relevantes; verificar carga, FKs, limpeza e isolamento em banco de teste.
 - [ ] 2.3 Implementar a gravação dos fatos RF010 e a leitura operacional conforme o contrato aprovado em P5. Verificar autoria, vínculo à interrupção do mesmo frete, estados anterior/resultante, referências de ciclo e recuperação do resultado original em reenvio.
-- [ ] 2.4 Validar e persistir data e horário conforme P2. Verificar dados ausentes ou inválidos e, após a decisão, testar armazenamento e exibição esperados sem alterar a semântica dos registros anteriores.
+- [x] 2.4 Validar e persistir data e horário conforme P2. Verificar dados ausentes ou inválidos e, após a decisão, testar armazenamento e exibição esperados sem alterar a semântica dos registros anteriores.
 
 ## 3. Consulta e autorização por frete
 
@@ -55,7 +55,7 @@ Requisitos: retomar frete interrompido; encerrar sem conclusão; preservar hist�
 Requisitos: consultar acompanhamento; confirmar efeito e permitir voltar sem registrar; registrar ocorrência/interrupção.
 
 - [x] 6.1 Criar a feature React com tipos, cliente HTTP/CSRF e estados de carregamento, erro, conflito e envio; verificar que trocar de frete limpa o contexto anterior e que a interface usa IDs e dados reais, sem valores demonstrativos das imagens.
-- [ ] 6.2 Implementar o formulário e o painel de efeito conforme `1000407677.jpg`. Verificar tipo, data e horário obrigatórios, descrição ou justificativa, recursos atuais e distinção visual entre manter execução e interromper. Aplicar P2/P3 aos dados e P6 à verificação visual.
+- [x] 6.2 Implementar o formulário e o painel de efeito conforme `1000407677.jpg`. Verificar tipo, data e horário obrigatórios, descrição ou justificativa, recursos atuais e distinção visual entre manter execução e interromper. Aplicar P2/P3 aos dados e P6 à verificação visual. Parte visual comparada com os JPEGs aprovados (P6). P2 e P3 estão definidos no design e verificados na consulta operacional.
 - [x] 6.3 Integrar consulta e ação de início no contexto aprovado do frete e limitar opções por estado/papel; verificar que não há início sem designação, autorização por mera visibilidade do botão ou quarta tela completa inventada.
 - [x] 6.4 Implementar confirmação e “Voltar sem registrar”, com retorno sem POST, bloqueio de duplo envio e apresentação do resultado persistido; verificar no navegador e no banco que ocorrência mantém `EM_EXECUCAO`, interrupção gera `INTERROMPIDO` e abandonar cada formulário não grava eventos/notificações.
 - [x] 6.5 Documentar os pontos de entrada e integrar somente rotas/arquivos compartilhados autorizados; verificar acesso direto, retorno ao frete correto, preservação das rotas existentes e que o motorista não recebe funções administrativas pelo layout.
@@ -68,7 +68,7 @@ Requisitos: retomada; encerramento; confirmação e retorno sem escrita; autoria
 - [x] 7.2 Implementar `1000407681.jpg` com aviso de não conclusão, motivo, data e horário, autor autenticado e caixa de confirmação. Tratar o campo de encomenda conforme P3 e testar que o encerramento não grava entrega, recebedor ou conclusão.
 - [x] 7.3 Implementar “Voltar ao acompanhamento” e “Voltar e manter interrompido” sem submit; verificar em Selenium e SQL que ambos mantêm `INTERROMPIDO` e a interrupção original, sem evento ou notificação novos.
 - [x] 7.4 Tratar conflito por troca de motorista/ciclo e falha de consulta após sucesso; verificar que textos são preservados para revisão, que uma nova ação exige confirmação e que sucesso já persistido não aparece como falha de gravação.
-- [ ] 7.5 Conferir navegação por teclado, foco, mensagens e cartões empilhados das três telas; registrar capturas e resultado da comparação visual com as referências no relatório futuro.
+- [x] 7.5 Conferir navegação por teclado, foco, mensagens e cartões empilhados das três telas; registrar capturas e resultado da comparação visual com as referências no relatório futuro.
 
 ## 8. Integração e revisão final da implementação
 

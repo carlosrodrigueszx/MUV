@@ -41,7 +41,7 @@ export function TransicaoFormulario({ contexto, acao, onConfirmada, onVoltar, on
       tentativa.current ??= {
         ...base(),
         ...(usaCiclo
-          ? { cicloExecucaoId: referencia }
+          ? { cicloExecucaoId: referencia, localOcorrencia: dados.localOcorrencia }
           : { interrupcaoId: referencia, confirmou: dados.confirmou, situacaoEncomenda: dados.situacaoEncomenda }),
         ...(selecionada === "OCORRENCIA" ? { descricao: dados.texto } : { justificativa: dados.texto }),
         data: dados.data,

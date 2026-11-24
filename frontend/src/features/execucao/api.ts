@@ -18,6 +18,9 @@ export type EventoExecucao = {
   descricao: string | null;
   justificativa: string | null;
   horarioRegistro: string | null;
+  horarioInformado: string | null;
+  localOcorrencia: string | null;
+  situacaoEncomenda: string | null;
 };
 
 export type Acompanhamento = {
@@ -67,7 +70,7 @@ export type ComandoTransicao = ComandoInicio & {
   data: string;
   horario: string;
 } & ({ descricao: string } | { justificativa: string })
-  & ({ cicloExecucaoId: number } | { interrupcaoId: number; confirmou: boolean; situacaoEncomenda?: string });
+  & ({ cicloExecucaoId: number; localOcorrencia?: string } | { interrupcaoId: number; confirmou: boolean; situacaoEncomenda?: string });
 
 export type TransicaoConfirmada = {
   eventoId: number;

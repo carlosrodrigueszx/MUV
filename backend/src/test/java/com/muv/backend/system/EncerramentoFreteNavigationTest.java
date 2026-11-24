@@ -70,7 +70,7 @@ class EncerramentoFreteNavigationTest extends NavegacaoExecucaoFixture {
             driver.navigate().refresh();
             verificarResultado(driver, 910062);
             assertThat(driver.findElement(By.tagName("main")).getText())
-                    .contains("Via segue bloqueada").doesNotContain("Sob guarda do prestador");
+                    .contains("Via segue bloqueada", "Sob guarda do prestador");
             assertThat(db.sql("""
                     SELECT situacao_encomenda FROM rf010_recibo_encerramento WHERE frete_id = 910062
                     """).query(String.class).single()).isEqualTo("Sob guarda do prestador");

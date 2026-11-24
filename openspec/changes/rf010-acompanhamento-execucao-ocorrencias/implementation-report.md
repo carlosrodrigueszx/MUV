@@ -240,14 +240,39 @@ Para repetir a seleção de navegador documentada acima, incluir `PercursoExecuc
 
 Resultado final: **76 testes de backend, 9 Selenium e 9 Node aprovados**, sem falhas, erros ou casos ignorados nas seleções. Passaram também o build do frontend, o ESLint da feature, OpenSpec estrito e `git diff --check`. Foram fechados **3.3, 4.1, 5.3, 5.5, 6.1, 6.5, 7.1, 7.4 e 8.1**. O checklist passou de 21 para **30 de 39**. Permanecem abertos **1.4, 2.1, 2.3, 2.4, 4.5, 5.4, 6.2, 7.5 e 8.2**.
 
-### Referências aprovadas para a conferência visual
+### Comparação com os três JPEGs aprovados
 
-A dupla indicou os três JPEGs como referências aprovadas de desktop. Nesta pasta de trabalho estão disponíveis as seis capturas da aplicação. Os títulos abaixo foram lidos nas capturas da aplicação. Falta conferir os títulos nos JPEGs e registrar, lado a lado, campos, obrigatoriedade, textos, avisos, ações e painéis.
+As referências fornecidas pela dupla estão preservadas em `evidencias/referencias/`. O pareamento foi feito pelos títulos visíveis no conteúdo desktop dos JPEGs. Os nomes, placas, horários, frete e dados de encomenda da referência são exemplos. A aplicação usa os dados da sessão e do frete.
 
-| Título na aplicação | Desktop para comparação | Responsividade a 390 px |
-| --- | --- | --- |
-| Registre uma ocorrência | [Registro e interrupção](evidencias/interrupcao-1360.png) | [Painéis empilhados](evidencias/interrupcao-390.png) |
-| Retome a execução com segurança | [Retomada](evidencias/retomada-1360.png) | [Painéis empilhados](evidencias/retomada-390.png) |
-| Encerre sem marcar como concluído | [Encerramento](evidencias/encerramento-1360.png) | [Painéis empilhados](evidencias/encerramento-390.png) |
+| Referência e tela | Diferenças encontradas na captura anterior e ajustes no RF010 |
+| --- | --- |
+| [1000407677.jpg — Registre uma ocorrência](evidencias/referencias/1000407677.jpg) · [Desktop](evidencias/interrupcao-1360.png) · [390 px](evidencias/interrupcao-390.png) | O tipo estava fixo e faltavam o título “O que aconteceu?”, os indicadores de obrigatoriedade, o local e a explicação do histórico. O seletor agora permite ocorrência e interrupção conforme a elegibilidade. Tipo, data, horário e descrição ou justificativa são obrigatórios. O painel “Efeito deste registro” mostra a consequência da seleção e os recursos atuais. No modo de interrupção, as ações são “Registrar e interromper execução” e “Voltar sem registrar”. O local aparece desabilitado enquanto se decide sua coleta (P3). |
+| [1000407679.jpg — Retome a execução com segurança](evidencias/referencias/1000407679.jpg) · [Desktop](evidencias/retomada-1360.png) · [390 px](evidencias/retomada-390.png) | Faltavam o título “Registro de retomada”, as marcas nos campos e o texto sobre inclusão da justificativa no histórico. À esquerda ficam data, horário, justificativa, recursos compatíveis, aceite obrigatório de prosseguimento e “Confirmar retomada”. À direita ficam a interrupção em aberto com motivo e autoria, o efeito “Após confirmar: Em execução” e “Voltar ao acompanhamento”. O subtítulo usa o horário de registro disponível em UTC. O significado e o fuso do horário civil informado dependem de P2. |
+| [1000407681.jpg — Encerre sem marcar como concluído](evidencias/referencias/1000407681.jpg) · [Desktop](evidencias/encerramento-1360.png) · [390 px](evidencias/encerramento-390.png) | A captura anterior trazia interrupção e recursos extras no painel de revisão. O formulário ganhou “Motivo do encerramento”, a orientação sobre impossibilidade de retomada e as marcas nos campos obrigatórios. Data, horário, justificativa e aceite de não conclusão são exigidos. A situação da encomenda é opcional e específica da modalidade. O painel “Revise antes de confirmar” destaca “Esta ação não é uma conclusão”, o registro do motivo e do responsável, a ausência de entrega e o autor autenticado. A confirmação vermelha e “Voltar e manter interrompido” mantêm as ações do JPEG. |
 
-A verificação a 390 px corresponde ao teste de responsividade já executado. A comparação direta de desktop continua pendente nos itens 1.4, 6.2 e 7.5. Em 1.4 e 6.2, P2 ainda trata do significado e fuso do horário informado, e P3 da persistência e visibilidade dos campos auxiliares.
+Nos três casos, o formulário fica à esquerda e o painel explicativo à direita no desktop. A identificação RF010 / MUV foi restabelecida. As capturas de teste usam o portal restrito do motorista, enquanto os JPEGs mostram o portal do prestador. O layout de conta permanece vinculado ao perfil real. Os avisos descrevem os efeitos persistidos pelo RF010. A promessa de notificar destinatários exibida nos três JPEGs depende do contrato com RF013 (P4). Os campos começam vazios e os aceites desmarcados para exigir confirmação do usuário.
+
+A 390 px, o critério é responsividade: o painel de efeito ou revisão passa para baixo do formulário e os controles permanecem acessíveis pela rolagem. Os JPEGs são referências apenas de desktop.
+
+O build, o ESLint de `src/features/execucao` e o cenário Selenium `PercursoExecucaoNavigationTest#ciclosNavegacaoTecladoERecuperacao` passaram nesta revisão. O cenário percorreu os controles com Tab e Shift+Tab, conferiu o foco no campo obrigatório, nos alertas e no recibo, verificou os retornos e a recuperação da consulta, e confirmou o empilhamento a 390 px. As seis capturas foram renovadas e inspecionadas. O painel da direita exige rolagem na janela estreita. A execução mais ampla de Selenium foi interrompida e o resultado desta revisão corresponde ao cenário isolado.
+
+A comparação com os três JPEGs conclui P6 e a tarefa **7.5**. O checklist passa a **31 de 39**. **1.4** e **6.2** seguem abertas pelas decisões P2 e P3, com a parte visual registrada acima. A política de notificações segue P4.
+
+### Aceite das oito tarefas restantes
+
+O fechamento depende das decisões abaixo. Os testes existentes de persistência e idempotência verificam o comportamento sob os contratos atuais.
+
+| Tarefas | Evidência e decisão necessária |
+| --- | --- |
+| 1.4, 2.4, 6.2 | A inspeção dos JPEGs e a validação de data e hora obrigatórias estão concluídas. A data e hora informadas ficam no recibo, separadas do instante de registro. Para P2, a proposta é preservar o valor civil informado no recibo, manter o instante de auditoria em UTC e definir qual horário o RF014 deve apresentar. Para P3, a proposta é guardar o local opcional e a situação da encomenda em dados privados do RF010, com acesso pelo prestador e pelo motorista designado. A coleta de local segue desabilitada até a decisão. |
+| 2.1, 2.3 | Os recibos ligam eventos, estados e referências de ciclo. Os percursos do RF010 confirmam a leitura dos fatos pelo endpoint do RF014. Falta Josué aprovar a semântica compartilhada e o tratamento de legados. A proposta é manter a leitura de registros antigos e condicionar comandos que exigem ciclo à existência de evento de abertura verificável. |
+| 4.5, 5.4 | Interrupção, retomada e encerramento já gravam um único fato por confirmação e o replay recupera o identificador original. A proposta para Rafael é consumir esses fatos pelo ID de `historico_execucao_frete` e deduplicar a entrega por evento e destinatário. Falta acordar destinatários e política de reenvio do RF013. |
+| 8.2 | A designação do autônomo depende de RF002/RF009. A proposta para P1 é usar a conta autenticada como autora e apresentar o papel de motorista para o início, que exige esse vínculo. O percurso completo precisa da associação real entre a conta e o motorista e da designação liberada no RF009. |
+
+Passaram **42 testes** com PostgreSQL de teste. `consultaLegadoEmExecucaoSemEventoDeAbertura` confirmou que o histórico existente continua legível e que um ciclo sem abertura verificável fica sem ações disponíveis. `designacaoDoAutonomoAindaBloqueiaOFluxoAntesDoInicio` confirmou HTTP 422 no POST de designação e frete em `AGUARDANDO_DESIGNACAO` após a recusa. OpenSpec estrito e `git diff --check` passaram. O checklist permanece em **31 de 39** até o aceite das decisões e a liberação da dependência.
+
+### Decisões de horário e campos privados
+
+O horário civil informado aparece no acompanhamento do RF010 com rótulo próprio e sem deslocamento pelo fuso do navegador. O instante de auditoria conserva sua semântica de registro em UTC. A V16 acrescenta o local opcional aos recibos de ocorrência e interrupção. O campo entra na verificação de idempotência e aparece, junto da situação opcional da encomenda, apenas no acompanhamento protegido do RF010. O RF014 mantém sua projeção anterior. A asserção do RF014 verifica que o local e a situação da encomenda permanecem fora do histórico geral.
+
+Passaram 47 testes, incluindo 4 de Selenium. Passaram o build e o ESLint da feature. As seis capturas foram renovadas com o novo campo habilitado. Foram encerrados 1.4, 2.4 e 6.2. O checklist chegou a **34 de 39**. As tarefas 2.1/2.3 e 4.5/5.4 aguardam, respectivamente, o contrato compartilhado do histórico e o consumo efetivo pelo RF013. A 8.2 aguarda o vínculo de motorista próprio e a designação suportados por RF002/RF009.

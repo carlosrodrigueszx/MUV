@@ -26,7 +26,11 @@ public class TransicaoFreteService {
     public record Comando(
             UUID chaveOperacao, String estadoEsperado, Long revisaoDesignacao, Long cicloExecucaoId,
             String descricao, String justificativa, LocalDate data, LocalTime horario,
-            Long interrupcaoId, Boolean confirmou, String situacaoEncomenda) {
+            Long interrupcaoId, Boolean confirmou, String situacaoEncomenda, String localOcorrencia) {
+        public Comando {
+            localOcorrencia = localOcorrencia == null || localOcorrencia.isBlank() ? null : localOcorrencia.strip();
+        }
+
         String texto(Acao acao) {
             return acao == Acao.OCORRENCIA ? descricao : justificativa;
         }
@@ -69,6 +73,7 @@ public class TransicaoFreteService {
                     || !Objects.equals(original.revisaoDesignacao(), comando.revisaoDesignacao())
                     || !Objects.equals(original.referenciaId(), comando.referencia(acao))
                     || !Objects.equals(original.texto(), comando.texto(acao))
+                    || !Objects.equals(original.localOcorrencia(), comando.localOcorrencia())
                     || !Objects.equals(original.situacaoEncomenda(), comando.situacaoEncomenda())
                     || !Objects.equals(original.dataHoraInformada(), comando.dataHoraInformada())) {
                 throw conflito("A chave já foi usada em outra confirmação.");
@@ -82,6 +87,7 @@ public class TransicaoFreteService {
                 || !RegrasExecucao.dadosValidos(acao, comando.texto(acao), comando.data(),
                         comando.horario(), Boolean.TRUE.equals(comando.confirmou()))
                 || (!inicio && comando.horario().getNano() % 1_000 != 0)
+                || (comando.localOcorrencia() != null && !acao.usaCicloExecucao())
                 || (comando.situacaoEncomenda() != null
                     && (acao != Acao.ENCERRAMENTO_SEM_CONCLUSAO || !"ENCOMENDA".equals(frete.modalidade())))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Verifique os dados e a confirmação do formulário.");
@@ -101,7 +107,7 @@ public class TransicaoFreteService {
 
         long eventoId = repositorio.gravarEvento(frete, autorId, acao, comando.texto(acao));
         repositorio.gravarRecibo(freteId, acao, comando.chaveOperacao(), eventoId, vigente,
-                referencia, comando.dataHoraInformada(), comando.situacaoEncomenda());
+                referencia, comando.dataHoraInformada(), comando.situacaoEncomenda(), comando.localOcorrencia());
         return new Resultado(eventoId, autorId, vigente.estado(), acao.estadoResultante());
     }
 

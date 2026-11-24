@@ -159,7 +159,7 @@ class PercursoExecucaoNavigationTest extends NavegacaoExecucaoFixture {
             driver.switchTo().newWindow(org.openqa.selenium.WindowType.TAB);
             driver.get(rota);
             clicar(driver, "Registrar interrupção");
-            tecladoECaptura(driver, "interrupcao", List.of("tipo","data","horario","texto","submit","voltar"));
+            tecladoECaptura(driver, "interrupcao", List.of("tipo","data","horario","texto","localOcorrencia","submit","voltar"));
             preencher(driver, "Interrupção de teste");
             clicar(driver, "Registrar e interromper execução");
             esperarTexto(driver, "Interrupção registrada.");

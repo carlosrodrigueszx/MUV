@@ -29,7 +29,8 @@ public class ExecucaoFreteService {
 
     public record Recursos(String motorista, String veiculo, String placa) {}
     public record Evento(long id, Acao tipo, String autor, String descricao, String justificativa,
-                         OffsetDateTime horarioRegistro) {}
+                         OffsetDateTime horarioRegistro, java.time.LocalDateTime horarioInformado,
+                         String localOcorrencia, String situacaoEncomenda) {}
     public record Acompanhamento(
             long freteId, String modalidade, String estado, long revisaoDesignacao,
             Recursos recursos, Long cicloExecucaoId, Long interrupcaoId, List<Evento> eventos,

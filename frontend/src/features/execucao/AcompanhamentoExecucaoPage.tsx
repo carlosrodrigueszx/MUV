@@ -176,6 +176,12 @@ function ResumoExecucao({ dados, recibo, onAcao }: {
                 <li className="break-words py-3" key={evento.id}>
                   <p className="font-medium">{rotulos[evento.tipo]}</p>
                   <p>Por {evento.autor}</p>
+                  {evento.horarioInformado && <p>Horário informado: <time dateTime={evento.horarioInformado}>{
+                    new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "UTC" })
+                      .format(new Date(`${evento.horarioInformado}Z`))
+                  }</time></p>}
+                  {evento.localOcorrencia && <p>Local da ocorrência: {evento.localOcorrencia}</p>}
+                  {evento.situacaoEncomenda && <p>Situação da encomenda: {evento.situacaoEncomenda}</p>}
                   {evento.descricao && <p>{evento.descricao}</p>}
                   {evento.justificativa && <p>{evento.justificativa}</p>}
                 </li>

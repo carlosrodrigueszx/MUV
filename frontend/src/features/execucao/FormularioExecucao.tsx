@@ -37,6 +37,7 @@ export type DadosFormulario = {
   horario: string;
   confirmou: boolean;
   situacaoEncomenda?: string;
+  localOcorrencia?: string;
 };
 
 type Props = {
@@ -71,6 +72,7 @@ export function FormularioExecucao({
       acao, texto: String(campos.get("texto") ?? ""), data: String(campos.get("data") ?? ""),
       horario: String(campos.get("horario") ?? ""), confirmou: campos.has("confirmou"),
       situacaoEncomenda: situacao.trim() ? situacao : undefined,
+      localOcorrencia: String(campos.get("localOcorrencia") ?? "").trim() || undefined,
     };
   }
 
@@ -134,7 +136,8 @@ export function FormularioExecucao({
           </label>
           {!interrompido && <label className="block text-sm font-medium">
             Local da ocorrência
-            <input className={campo} disabled placeholder="Indisponível para registro" />
+            <input name="localOcorrencia" className={campo} defaultValue={rascunho?.localOcorrencia}
+              disabled={enviando} readOnly={somenteReenvio} />
           </label>}
           {acao === "RETOMADA" && contexto.recursos && (
             <div className="rounded-lg bg-[#e5f2ee] p-3 text-sm">

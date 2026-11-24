@@ -117,6 +117,38 @@ class ExecucaoFreteIntegrationTest {
                 .andExpect(jsonPath("$.acoesElegiveis").isEmpty());
     }
 
+    @Test
+    void consultaLegadoEmExecucaoSemEventoDeAbertura() throws Exception {
+        db.sql("DELETE FROM historico_execucao_frete WHERE id = 910073").update();
+        mvc.perform(get(execucao(910063)).session(login("empresa")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("EM_EXECUCAO"))
+                .andExpect(jsonPath("$.cicloExecucaoId").doesNotExist())
+                .andExpect(jsonPath("$.acoesElegiveis").isEmpty())
+                .andExpect(jsonPath("$.eventos[0].id").value(910074))
+                .andExpect(jsonPath("$.eventos[0].horarioRegistro").doesNotExist());
+    }
+
+    @Test
+    void designacaoDoAutonomoAindaBloqueiaOFluxoAntesDoInicio() throws Exception {
+        var sessao = login("autonomo");
+        var csrf = mvc.perform(get("/api/auth/csrf").session(sessao)).andExpect(status().isOk()).andReturn();
+        var token = json.readTree(csrf.getResponse().getContentAsString());
+        mvc.perform(post("/api/prestador/fretes/910064/designacao").session(sessao)
+                        .header(token.get("headerName").asString(), token.get("token").asString())
+                        .contentType("application/json")
+                        .content("""
+                                {"motoristaId":910011,"veiculoId":910021,"revisao":0}
+                                """))
+                .andExpect(status().is(422))
+                .andExpect(result -> assertThat(result.getResponse().getErrorMessage())
+                        .contains("A identidade de motorista do autônomo ainda não está associada"));
+        mvc.perform(get(execucao(910064)).session(sessao))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("AGUARDANDO_DESIGNACAO"))
+                .andExpect(jsonPath("$.acoesElegiveis").isEmpty());
+    }
+
     private MockHttpSession login(String conta) throws Exception {
         String email = conta + "910@example.test";
         db.sql("UPDATE usuario SET senha = :senha WHERE email = :email")

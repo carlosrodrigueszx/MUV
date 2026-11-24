@@ -58,6 +58,9 @@ public class ExecucaoFreteRepository {
     List<ExecucaoFreteService.Evento> consultarEventos(long freteId) {
         return db.sql("""
                 SELECT h.id, h.tipo_evento, autor.nome AS autor, h.descricao, h.justificativa,
+                       COALESCE(ro.data_hora_informada, ri.data_hora_informada, rr.data_hora_informada,
+                                re.data_hora_informada) AS horario_informado,
+                       COALESCE(ro.local_ocorrencia, ri.local_ocorrencia) AS local_ocorrencia, re.situacao_encomenda,
                        CASE WHEN ini.evento_id IS NOT NULL OR ro.evento_id IS NOT NULL OR ri.evento_id IS NOT NULL OR rr.evento_id IS NOT NULL
                               OR re.evento_id IS NOT NULL THEN h.data_hora END AS registro_utc
                 FROM historico_execucao_frete h
@@ -78,7 +81,9 @@ public class ExecucaoFreteRepository {
                     return new ExecucaoFreteService.Evento(
                             rs.getLong("id"), Acao.valueOf(rs.getString("tipo_evento")),
                             rs.getString("autor"), rs.getString("descricao"), rs.getString("justificativa"),
-                            registroUtc == null ? null : registroUtc.atOffset(ZoneOffset.UTC));
+                            registroUtc == null ? null : registroUtc.atOffset(ZoneOffset.UTC),
+                            rs.getObject("horario_informado", LocalDateTime.class),
+                            rs.getString("local_ocorrencia"), rs.getString("situacao_encomenda"));
                 })
                 .list();
     }
@@ -101,30 +106,30 @@ public class ExecucaoFreteRepository {
 
     record Recibo(Acao acao, long eventoId, long autorId, String texto, Long referenciaId,
                   Long revisaoDesignacao, String estadoAnterior, String estadoResultante,
-                  LocalDateTime dataHoraInformada, String situacaoEncomenda) {}
+                  LocalDateTime dataHoraInformada, String situacaoEncomenda, String localOcorrencia) {}
 
     Optional<Recibo> consultarRecibo(long freteId, UUID chave) {
         return db.sql("""
                 SELECT e.tipo_evento, r.evento_id, e.usuario_autor_id, CASE WHEN e.tipo_evento = 'OCORRENCIA' THEN e.descricao ELSE e.justificativa END AS texto, r.referencia_id,
-                       r.revisao_designacao, r.estado_anterior, r.estado_resultante, r.data_hora_informada, r.situacao_encomenda
+                       r.revisao_designacao, r.estado_anterior, r.estado_resultante, r.data_hora_informada, r.situacao_encomenda, r.local_ocorrencia
                 FROM (
                     SELECT frete_id, evento_id, ciclo_execucao_id AS referencia_id, revisao_designacao,
-                           estado_anterior, estado_resultante, data_hora_informada, CAST(NULL AS text) AS situacao_encomenda
+                           estado_anterior, estado_resultante, data_hora_informada, CAST(NULL AS text) AS situacao_encomenda, local_ocorrencia
                     FROM rf010_recibo_ocorrencia WHERE frete_id = :freteId AND chave_operacao = :chave
                     UNION ALL
-                    SELECT frete_id, evento_id, NULL, revisao_designacao, estado_anterior, estado_resultante, NULL, NULL
+                    SELECT frete_id, evento_id, NULL, revisao_designacao, estado_anterior, estado_resultante, NULL, NULL, NULL
                     FROM rf010_recibo_inicio WHERE frete_id = :freteId AND chave_operacao = :chave
                     UNION ALL
                     SELECT frete_id, evento_id, ciclo_execucao_id, revisao_designacao,
-                           estado_anterior, estado_resultante, data_hora_informada, CAST(NULL AS text)
+                           estado_anterior, estado_resultante, data_hora_informada, CAST(NULL AS text), local_ocorrencia
                     FROM rf010_recibo_interrupcao WHERE frete_id = :freteId AND chave_operacao = :chave
                     UNION ALL
                     SELECT frete_id, evento_id, interrupcao_id, revisao_designacao,
-                           estado_anterior, estado_resultante, data_hora_informada, CAST(NULL AS text)
+                           estado_anterior, estado_resultante, data_hora_informada, CAST(NULL AS text), NULL
                     FROM rf010_recibo_retomada WHERE frete_id = :freteId AND chave_operacao = :chave
                     UNION ALL
                     SELECT frete_id, evento_id, interrupcao_id, revisao_designacao,
-                           estado_anterior, estado_resultante, data_hora_informada, situacao_encomenda
+                           estado_anterior, estado_resultante, data_hora_informada, situacao_encomenda, NULL
                     FROM rf010_recibo_encerramento WHERE frete_id = :freteId AND chave_operacao = :chave
                 ) r
                 JOIN historico_execucao_frete e ON e.id = r.evento_id AND e.frete_id = r.frete_id
@@ -134,7 +139,7 @@ public class ExecucaoFreteRepository {
                         rs.getLong("usuario_autor_id"), rs.getString("texto"), rs.getObject("referencia_id", Long.class),
                         rs.getLong("revisao_designacao"), rs.getString("estado_anterior"),
                         rs.getString("estado_resultante"), rs.getObject("data_hora_informada", LocalDateTime.class),
-                        rs.getString("situacao_encomenda")))
+                        rs.getString("situacao_encomenda"), rs.getString("local_ocorrencia")))
                 .optional();
     }
 
@@ -162,7 +167,7 @@ public class ExecucaoFreteRepository {
     }
 
     void gravarRecibo(long freteId, Acao acao, UUID chave, long eventoId, Contexto contexto,
-                      Long referencia, LocalDateTime dataHoraInformada, String situacaoEncomenda) {
+                      Long referencia, LocalDateTime dataHoraInformada, String situacaoEncomenda, String localOcorrencia) {
         if (acao == Acao.INICIO) {
             db.sql("""
                     INSERT INTO rf010_recibo_inicio
@@ -187,13 +192,14 @@ public class ExecucaoFreteRepository {
                     (frete_id, chave_operacao, evento_id, %s, revisao_designacao,
                      estado_anterior, estado_resultante, data_hora_informada%s)
                 VALUES (:freteId, :chave, :eventoId, :referencia, :revisao, :anterior, :resultante, :dataHora%s)
-                """.formatted(tabela, colunaReferencia, encerramento ? ", situacao_encomenda" : "",
-                              encerramento ? ", :situacao" : ""))
+                """.formatted(tabela, colunaReferencia, encerramento ? ", situacao_encomenda" : acao.usaCicloExecucao() ? ", local_ocorrencia" : "",
+                              encerramento ? ", :situacao" : acao.usaCicloExecucao() ? ", :local" : ""))
                 .param("freteId", freteId).param("chave", chave).param("eventoId", eventoId)
                 .param("referencia", referencia).param("revisao", contexto.revisaoDesignacao())
                 .param("anterior", contexto.estado()).param("resultante", acao.estadoResultante())
                 .param("dataHora", dataHoraInformada);
         if (encerramento) insert = insert.param("situacao", situacaoEncomenda, java.sql.Types.VARCHAR);
+        if (acao.usaCicloExecucao()) insert = insert.param("local", localOcorrencia, java.sql.Types.VARCHAR);
         insert.update();
     }
 }
