@@ -63,6 +63,9 @@ class TransicaoFreteIntegrationTest {
     @BeforeEach
     void restaurarFreteEmExecucao() {
         db.sql("DELETE FROM rf010_recibo_ocorrencia WHERE frete_id = 910061").update();
+        db.sql("DELETE FROM rf010_recibo_encerramento WHERE frete_id = 910061").update();
+        db.sql("DELETE FROM rf010_recibo_retomada WHERE frete_id = 910061").update();
+        db.sql("DELETE FROM rf010_recibo_interrupcao WHERE frete_id = 910061").update();
         db.sql("DELETE FROM rf010_recibo_inicio WHERE frete_id = 910061").update();
         db.sql("DELETE FROM notificacao WHERE frete_id = 910061").update();
         db.sql("DELETE FROM historico_execucao_frete WHERE frete_id = 910061").update();
@@ -107,6 +110,64 @@ class TransicaoFreteIntegrationTest {
         db.sql("UPDATE frete SET veiculo_atual_id = 910022 WHERE id = 910061").update();
         enviarComando(INICIO, atual, comando.replace(":1}", ":3}"), 409);
         conferirInicio("PRONTO_INICIO", 0, 0);
+    }
+
+    @Test
+    void contaResponsavelIniciaComoMotoristaDesignadoEPermaneceAutora() throws Exception {
+        var empresa = entrar("empresa");
+        String inicio = dadosInicio();
+
+        mvc.perform(get(PESSOAS).session(empresa.session())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.prestadorResponsavel").value(true))
+                .andExpect(jsonPath("$.acoesElegiveis").isEmpty());
+        enviarComando(INICIO, empresa, inicio, 403);
+        conferirInicio("PRONTO_INICIO", 0, 0);
+        assertThat(db.sql("SELECT count(*) FROM historico_execucao_frete WHERE frete_id = 910061")
+                .query(Long.class).single()).isZero();
+        assertThat(db.sql("SELECT count(*) FROM rf010_recibo_inicio WHERE frete_id = 910061")
+                .query(Long.class).single()).isZero();
+
+        // Reutiliza o motorista verificado e o veículo de pessoas da fixture.
+        db.sql("UPDATE motorista SET usuario_id = 910002 WHERE id = 910011").update();
+        try {
+            mvc.perform(get(PESSOAS).session(empresa.session())).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.prestadorResponsavel").value(true))
+                    .andExpect(jsonPath("$.acoesElegiveis[0]").value("INICIO"));
+            long ciclo = confirmarComoEmpresa(INICIO, empresa, inicio, "INICIO", "EM_EXECUCAO");
+            confirmarComoEmpresa(PESSOAS + "/ocorrencias", empresa,
+                    dados(UUID.randomUUID(), ciclo).replace("justificativa", "descricao"),
+                    "OCORRENCIA", "EM_EXECUCAO");
+            long interrupcao = confirmarComoEmpresa(PESSOAS + "/interrupcoes", empresa,
+                    dados(UUID.randomUUID(), ciclo), "INTERRUPCAO", "INTERROMPIDO");
+            long novoCiclo = confirmarComoEmpresa(PESSOAS + "/retomadas", empresa,
+                    dadosRetomada(UUID.randomUUID(), interrupcao, true), "RETOMADA", "EM_EXECUCAO");
+            long novaInterrupcao = confirmarComoEmpresa(PESSOAS + "/interrupcoes", empresa,
+                    dados(UUID.randomUUID(), novoCiclo), "INTERRUPCAO", "INTERROMPIDO");
+            confirmarComoEmpresa(PESSOAS + "/encerramento-sem-conclusao", empresa,
+                    dadosEncerramento(UUID.randomUUID(), novaInterrupcao, true, false),
+                    "ENCERRAMENTO_SEM_CONCLUSAO", "ENCERRADO_SEM_CONCLUSAO");
+            assertThat(db.sql("SELECT count(*) FROM historico_execucao_frete WHERE frete_id = 910061")
+                    .query(Long.class).single()).isEqualTo(6);
+        } finally {
+            db.sql("UPDATE motorista SET usuario_id = 910003 WHERE id = 910011").update();
+        }
+    }
+
+    private long confirmarComoEmpresa(String rota, Sessao sessao, String comando, String tipo, String estado)
+            throws Exception {
+        var resposta = enviarComando(rota, sessao, comando, 200).getResponse();
+        var resultado = json.readTree(resposta.getContentAsString());
+        long eventoId = resultado.get("eventoId").asLong();
+        assertThat(resultado.get("autorId").asLong()).isEqualTo(910002L);
+        assertThat(resultado.get("estadoResultante").asString()).isEqualTo(estado);
+        assertThat(db.sql("SELECT status FROM frete WHERE id = 910061").query(String.class).single())
+                .isEqualTo(estado);
+        assertThat(db.sql("""
+                SELECT usuario_autor_id FROM historico_execucao_frete
+                WHERE frete_id = 910061 AND id = :evento AND tipo_evento = :tipo
+                """).param("evento", eventoId).param("tipo", tipo).query(Long.class).single())
+                .isEqualTo(910002L);
+        return eventoId;
     }
 
     @Test
@@ -750,10 +811,14 @@ class TransicaoFreteIntegrationTest {
     }
 
     private static String dados(UUID chave) {
+        return dados(chave, 910073);
+    }
+
+    private static String dados(UUID chave, long cicloExecucaoId) {
         return """
                 {"chaveOperacao":"%s","estadoEsperado":"EM_EXECUCAO","revisaoDesignacao":1,
-                 "cicloExecucaoId":910073,"justificativa":"Via bloqueada","data":"2000-01-02","horario":"09:15"}
-                """.formatted(chave);
+                 "cicloExecucaoId":%d,"justificativa":"Via bloqueada","data":"2000-01-02","horario":"09:15"}
+                """.formatted(chave, cicloExecucaoId);
     }
 
     private MvcResult enviar(Sessao sessao, String dados, int status) throws Exception {

@@ -25,10 +25,8 @@ Nenhuma. A mudança consome a contratação do RF008 e a designação do RF009 e
 
 ## Impact
 
-Gustavo é o responsável pelo RF010. Gustavo e Walison revisam a proposta antes de iniciar a implementação.
+Gustavo é o responsável pelo RF010 e Walison participa da revisão. A branch contém consulta operacional, início, ocorrência, interrupção, retomada e encerramento sem conclusão, com interface, API e persistência. O caminho verificado para o acompanhamento é o acesso direto a `/fretes/:freteId/execucao`. A descoberta da tela a partir do fluxo do prestador ou do motorista segue em aberto.
 
-O trabalho futuro envolve o portal, a API e a persistência dos fatos de execução. O RF010 usa a sessão do RF001 e consulta vínculo e designação em RF003/RF009. Cadastro, designação e substituição continuam nos módulos responsáveis. O autônomo depende de RF002/RF009 para que a conta seja associada ao motorista próprio e o frete chegue a `PRONTO_INICIO`.
+A consulta usa a sessão RF001 e os vínculos e recursos de RF003/RF009. O fluxo completo do autônomo depende da associação da conta ao motorista próprio e da designação em RF002/RF009. O RF010 grava os fatos de execução. A política de avisos e a entrega dependem de Rafael (RF013). A leitura geral atual do RF014 já encontra os fatos, e a evolução do contrato compartilhado depende de Josué. As decisões e as pendências constam no [design](design.md#open-questions).
 
-O RF010 registra seus próprios eventos. Rafael responde pela integração e política de avisos do RF013. Josué responde pela consulta geral, filtros e apresentação do RF014. Alterações em contratos, tabelas ou comportamentos compartilhados dependem de alinhamento. As decisões pendentes e os cenários afetados estão em [design.md — Open Questions](design.md#open-questions).
-
-Esta entrega contém somente os artefatos OpenSpec, incluindo `.openspec.yaml`. Não implementa frontend, backend, banco ou testes da aplicação. A implementação futura depende de autorização conforme `AGENTS.md`; cancelamento, conclusão efetiva/entrega (RF012), substituição de recursos e novo acordo, central de notificações e operações financeiras permanecem nos respectivos módulos.
+Esta revisão atualiza os cinco documentos da mudança OpenSpec. O escopo funcional continua limitado ao RF010. Cancelamento pré-execução, conclusão efetiva, substituição de recursos, novo acordo, central de notificações e operações financeiras pertencem aos respectivos módulos.

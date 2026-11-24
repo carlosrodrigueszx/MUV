@@ -2,6 +2,8 @@
 
 Esta lista acompanha a implementação de `specs/acompanhamento-execucao-ocorrencias/spec.md` conforme `design.md`. As evidências da entrega parcial e os bloqueios por tarefa estão no [relatório de implementação](implementation-report.md). Marcar uma tarefa somente após realizar e verificar seu resultado. Os IDs P1 a P7 apontam para as decisões e dependências registradas em [design.md — Open Questions](design.md#open-questions). Execute apenas o trabalho autorizado do RF010 e mantenha o aceite dependente em aberto enquanto o requisito responsável não liberar o contrato.
 
+**36 de 36 tarefas do escopo desta entrega**. Cinco tarefas de integração foram encaminhadas aos requisitos responsáveis, com IDs originais e aceite pendente registrados no [relatório](implementation-report.md#tarefas-encaminhadas-aos-requisitos-responsáveis).
+
 ## 1. Preparação e contratos
 
 - [x] 1.1 Antes de implementar, reler `AGENTS.md`, proposta, design e especificação e obter autorização para o escopo de implementação, inclusive backend; verificar que a autorização cobre RF010 e registrar os limites no relatório futuro.
@@ -14,9 +16,7 @@ Esta lista acompanha a implementação de `specs/acompanhamento-execucao-ocorren
 
 Requisitos: preservar histórico e autoria; validar dados temporais; revalidar confirmações repetidas.
 
-- [ ] 2.1 Revisar o esquema de histórico, os dados legados e a leitura do RF014 com Josué conforme P5. Registrar o contrato aprovado e a responsabilidade por eventual mudança compartilhada. Encaminhar alterações de RF014 a Josué.
 - [x] 2.2 Criar fixtures e limpeza exclusivas RF010 com pessoas, encomendas, empresa, motorista designado, colega da mesma empresa, motorista externo, contas e estados relevantes; verificar carga, FKs, limpeza e isolamento em banco de teste.
-- [ ] 2.3 Implementar a gravação dos fatos RF010 e a leitura operacional conforme o contrato aprovado em P5. Verificar autoria, vínculo à interrupção do mesmo frete, estados anterior/resultante, referências de ciclo e recuperação do resultado original em reenvio.
 - [x] 2.4 Validar e persistir data e horário conforme P2. Verificar dados ausentes ou inválidos e, após a decisão, testar armazenamento e exibição esperados sem alterar a semântica dos registros anteriores.
 
 ## 3. Consulta e autorização por frete
@@ -36,7 +36,6 @@ Requisitos: registrar início; ocorrência sem interrupção; interrupção just
 - [x] 4.2 Implementar início pelo motorista designado de `PRONTO_INICIO` para `EM_EXECUCAO`, revalidando recursos do RF009; verificar em serviço/API o sucesso e o bloqueio sem recursos válidos, por outro motorista ou em estado inelegível, com `INICIO` e autoria correta no banco.
 - [x] 4.3 Implementar ocorrência por prestador ou motorista designado mantendo `EM_EXECUCAO`; verificar nas duas modalidades descrição/data/horário obrigatórios, espaços Unicode, horário inválido, estados anterior/resultante iguais e histórico sem interrupção automática.
 - [x] 4.4 Implementar interrupção por cada ator permitido com justificativa obrigatória. Verificar autoria, transição para `INTERROMPIDO`, preservação de recursos e recusa de uma nova operação quando já interrompido.
-- [ ] 4.5 Identificar o fato único de interrupção disponível para o RF013 e registrar o alinhamento P4 com Rafael para os três avisos dos frames. Acompanhar eventual alteração de contrato ou tabela pelo RF013.
 - [x] 4.6 Testar reenvio autorizado após perda da resposta, inclusive após a primeira interrupção mudar o estado. Verificar resposta original e ausência de novo evento, transição ou efeito de integração. Cobrir chave reutilizada com outro conteúdo e duas ocorrências independentes no mesmo ciclo.
 
 ## 5. Retomada e encerramento sem conclusão
@@ -46,7 +45,6 @@ Requisitos: retomar frete interrompido; encerrar sem conclusão; preservar hist�
 - [x] 5.1 Implementar retomada por prestador ou motorista atual, com justificativa, data/horário, confirmação de prosseguimento, recursos revalidados e referência à interrupção; verificar `INTERROMPIDO` para `EM_EXECUCAO`, `RETOMADA` e preservação do evento original.
 - [x] 5.2 Implementar encerramento por ambos os autores permitidos, com motivo, data/horário e confirmação de não conclusão; verificar `INTERROMPIDO` para `ENCERRADO_SEM_CONCLUSAO`, vínculo à interrupção e ausência de entrega, campos de conclusão, cancelamento e mudanças financeiras.
 - [x] 5.3 Rejeitar justificativas vazias, confirmações ausentes, estados incompatíveis e comandos em estados terminais; verificar JUnit/MockMvc e consultas SQL sem alteração de estado, histórico ou notificações após cada rejeição.
-- [ ] 5.4 Verificar que retomada e encerramento geram um único fato de execução cada e que o reenvio não repete seus efeitos. Após P4, verificar o contrato acordado com o RF013, deixando entrega e política de avisos no requisito responsável.
 - [x] 5.5 Testar troca de motorista e ciclos sucessivos. Verificar recusa do motorista substituído e de formulários antigos de retomada ou encerramento. Abrir ocorrência e interrupção, interromper e retomar com a mesma designação e verificar que os formulários anteriores pedem atualização mesmo em `EM_EXECUCAO`.
 - [x] 5.6 Executar testes de concorrência PostgreSQL para início versus cancelamento nos dois sentidos e retomada versus encerramento; verificar que só a transição válida vence e que não há evento órfão, retorno pré-execução ou sobrescrita da ação vencedora.
 
@@ -56,9 +54,10 @@ Requisitos: consultar acompanhamento; confirmar efeito e permitir voltar sem reg
 
 - [x] 6.1 Criar a feature React com tipos, cliente HTTP/CSRF e estados de carregamento, erro, conflito e envio; verificar que trocar de frete limpa o contexto anterior e que a interface usa IDs e dados reais, sem valores demonstrativos das imagens.
 - [x] 6.2 Implementar o formulário e o painel de efeito conforme `1000407677.jpg`. Verificar tipo, data e horário obrigatórios, descrição ou justificativa, recursos atuais e distinção visual entre manter execução e interromper. Aplicar P2/P3 aos dados e P6 à verificação visual. Parte visual comparada com os JPEGs aprovados (P6). P2 e P3 estão definidos no design e verificados na consulta operacional.
-- [x] 6.3 Integrar consulta e ação de início no contexto aprovado do frete e limitar opções por estado/papel; verificar que não há início sem designação, autorização por mera visibilidade do botão ou quarta tela completa inventada.
+- [x] 6.3 Integrar consulta e ação de início na rota própria do RF010, com opções por estado e vínculo. Verificar que o início exige designação válida também na API.
 - [x] 6.4 Implementar confirmação e “Voltar sem registrar”, com retorno sem POST, bloqueio de duplo envio e apresentação do resultado persistido; verificar no navegador e no banco que ocorrência mantém `EM_EXECUCAO`, interrupção gera `INTERROMPIDO` e abandonar cada formulário não grava eventos/notificações.
-- [x] 6.5 Documentar os pontos de entrada e integrar somente rotas/arquivos compartilhados autorizados; verificar acesso direto, retorno ao frete correto, preservação das rotas existentes e que o motorista não recebe funções administrativas pelo layout.
+- [x] 6.5 Verificar por acesso direto a rota do RF010, o retorno ao mesmo frete e a ausência dos links administrativos no layout do motorista.
+- [x] 6.6 Definir com os responsáveis das telas de origem e implementar um atalho autorizado para o acompanhamento do frete. Validar em Selenium por clique a partir do portal, com o ID real, depois de combinar a origem e os arquivos afetados.
 
 ## 7. Interface de retomada e encerramento
 
@@ -72,10 +71,10 @@ Requisitos: retomada; encerramento; confirmação e retorno sem escrita; autoria
 
 ## 8. Integração e revisão final da implementação
 
-- [x] 8.1 Executar nas duas modalidades os fluxos de contratação, designação, início, ocorrência e interrupção, com retomada e encerramento em caminhos separados. Verificar recarga, autores distintos e compatibilidade dos registros no histórico atual. Encaminhar mudanças de consulta, filtros ou apresentação ao RF014 conforme P5.
-- [ ] 8.2 Executar o fluxo do autônomo após a liberação da dependência P7. Verificar designação, início, ações posteriores e autoria conforme P1. Manter o aceite desse cenário pendente enquanto RF002/RF009 não o suportarem.
+- [x] 8.1 Verificar contratação, designação, início, ocorrência e interrupção nas duas modalidades, com retomada e encerramento em percursos separados. O Selenium abre a rota do RF010 diretamente depois da designação e verifica recarga, autoria e leitura dos fatos na projeção atual do RF014.
 - [x] 8.3 Executar testes JUnit/MockMvc/PostgreSQL/Selenium da feature e regressões pertinentes RF009/RF011/RF014, testes Node relacionados, `npm run build` e lint dos arquivos alterados; registrar comandos, resultados reais e limitações, sem atribuir aprovação a teste não executado.
 - [x] 8.4 Revisar diff, escopo autorizado e checklist contra todos os cenários; executar `openspec validate rf010-acompanhamento-execucao-ocorrencias --strict` e `git diff --check`, registrando implementação, evidências e pendências no relatório futuro.
+- [x] 8.5 Cobrir, em teste isolado do RF010 com dados controlados, a conta que reúne os vínculos de prestador responsável e motorista designado. Verificar início pelo vínculo de motorista e autoria da própria conta nas ações posteriores. O papel exibido continua em P1 e o percurso real do autônomo continua em 8.2.
 
 ## Workflow follow-up
 

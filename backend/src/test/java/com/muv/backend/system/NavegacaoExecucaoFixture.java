@@ -28,6 +28,11 @@ abstract class NavegacaoExecucaoFixture {
     }
 
     WebDriver entrar(String perfil) {
+        String destino = switch (perfil) {
+            case "cliente" -> "/cliente/planejar-viagem";
+            case "empresa" -> "/prestador";
+            default -> "/motorista";
+        };
         String email = perfil + "910@example.test";
         db.sql("UPDATE usuario SET senha = :senha WHERE email = :email")
                 .param("senha", senhas.encode("Teste_RF010#")).param("email", email).update();
@@ -37,7 +42,7 @@ abstract class NavegacaoExecucaoFixture {
             espera(driver).until(ExpectedConditions.visibilityOfElementLocated(By.name("email"))).sendKeys(email);
             driver.findElement(By.name("senha")).sendKeys("Teste_RF010#");
             driver.findElement(By.cssSelector("form button:not([type='button'])")).click();
-            espera(driver).until(ExpectedConditions.urlContains("/cliente/planejar-viagem"));
+            espera(driver).until(ExpectedConditions.urlToBe(base + destino));
             return driver;
         } catch (RuntimeException erro) {
             driver.quit();

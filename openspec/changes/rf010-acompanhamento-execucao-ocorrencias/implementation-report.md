@@ -1,6 +1,77 @@
-# Implementação parcial do RF010
+# Implementação do RF010
 
-## Etapa inicial de consulta
+## Estado da branch revisada
+
+Na base `26b40a1`, a feature cobre consulta, início, ocorrência sem interrupção, interrupção, retomada e encerramento sem conclusão. A revisão confrontou a US-012, o RF010 e a RN015 com o código, as asserções existentes e as capturas versionadas. A transcrição `VID-20261123-WA0002.pdf` foi usada como referência de organização. Os resultados de execução abaixo pertencem às rodadas registradas no relatório. A revisão documental usou OpenSpec estrito e `git diff --check`.
+
+### Ponto de entrada
+
+O roteador declara `/fretes/:freteId/execucao`. `PercursoExecucaoNavigationTest#contratacaoAteDesfecho` obtém o ID real após a contratação, salva a designação e abre o acompanhamento via WebDriver para motorista e prestador. O item “Fretes” dentro da própria feature aponta para o mesmo frete. A tarefa 6.6 acrescentou e verificou o caminho por clique da visão geral do motorista. As tarefas 6.3, 6.5 e 8.1 cobrem a rota direta e as ações executadas a partir dela.
+
+### Tarefa 6.6 — Entrada pelo portal do motorista
+
+O patch autorizado foi aplicado após `git apply --check`. Na visão geral do motorista, em `/motorista`, a seção **Fretes designados** oferece “Acompanhar execução” para a designação atual da conta em `PRONTO_INICIO`, `EM_EXECUCAO` ou `INTERROMPIDO`.
+
+O controlador compartilhado `PortalOverviewController.java` fornece `fretesAcompanhaveis` na resposta existente da visão geral. `PortalOverview.tsx` monta o link para `/fretes/:freteId/execucao` com o ID real. A agenda conserva a seleção dos quatro próximos fretes com partida futura. O destino continua verificando sessão e vínculo nas regras do RF010.
+
+`PortalExecucaoNavigationTest` usa Chromium headless, o frontend compilado e PostgreSQL 16.14 com schema isolado. O login segue o destino de cada perfil e a fixture complementar ajusta as partidas em relação ao relógio de teste.
+
+| Cenário Selenium | Evidência |
+| --- | --- |
+| Frete pronto fora da agenda | Os quatro itens da agenda são os fretes com partidas anteriores à de 910061. O motorista clica no link de 910061 na visão geral, chega à URL com esse ID e encontra “Iniciar execução”. |
+| Partidas passadas | Por clique na visão geral, 910063 abre como “Em execução”, com ocorrência e interrupção, e 910062 abre como “Interrompido”, com retomada e encerramento sem conclusão. |
+| Colega da mesma empresa | Após carregar a visão geral, a conta não recebe os atalhos. As três URLs diretas exibem a recusa de acesso; o backend respondeu HTTP 403. |
+
+A seleção Maven passou com **40 testes, zero falhas, erros ou casos ignorados**: 3 em `PortalExecucaoNavigationTest`, 31 em `TransicaoFreteIntegrationTest` (incluindo a 8.5) e 6 em `ExecucaoFreteIntegrationTest`. A tarefa **6.6** foi marcada com essas evidências. Passaram também o build do frontend, `openspec validate rf010-acompanhamento-execucao-ocorrencias --strict` e `git diff --check`.
+
+### Decisões e pendências atuais
+
+| Decisão | Situação e evidência |
+| --- | --- |
+| P1 | A conta autenticada é gravada como autora e o acompanhamento exibe seu nome. O início exige o vínculo de motorista e o layout usa o vínculo de prestador quando presente. A exibição de um papel histórico para conta com ambos os vínculos segue em aberto. |
+| P2 | Implementada no RF010. Horário civil digitado no recibo e exibido sem conversão, com horário de auditoria em UTC. |
+| P3 | Implementada no RF010. V16 habilita local em ocorrência/interrupção. Situação da encomenda cabe ao encerramento dessa modalidade. Os testes verificam os dados operacionais e sua ausência na projeção geral do RF014. |
+| P4 | IDs de eventos e reenvio idempotente disponíveis. Aceite do consumo, destinatários e entrega aguardam Rafael (RF013), tarefas 4.5 e 5.4. |
+| P5 | Recibos preservam estados e referências. Legado sem abertura verificável permanece legível com os comandos dependentes de ciclo indisponíveis. `contratacaoAteDesfecho` verifica a projeção atual do RF014. A evolução do contrato compartilhado aguarda Josué, tarefas 2.1 e 2.3. |
+| P6 | Comparação documental concluída com as três referências desktop versionadas e os dois anexos adicionais. As capturas de 390 px e as asserções Selenium registram a responsividade. |
+| P7 | O teste existente documenta recusa 422 na designação do autônomo e permanência em `AGUARDANDO_DESIGNACAO`. O percurso real aguarda RF002/RF009, tarefa 8.2. |
+
+O checklist ativo registra **36 de 36 tarefas do escopo desta entrega**, incluindo **6.6** e **8.5**. Cinco tarefas foram encaminhadas aos requisitos responsáveis, com aceite ainda pendente. O papel exibido no histórico (P1) e o percurso real do autônomo (P7) seguem em aberto.
+
+### Tarefas encaminhadas aos requisitos responsáveis
+
+As tarefas abaixo saíram do checklist ativo desta entrega. A tabela conserva os IDs originais, as evidências já disponíveis e o aceite a obter junto aos responsáveis de RF014, RF013 e RF002/RF009.
+
+| ID original · decisão | Critério de aceite | Evidência disponível | Aceite pendente e responsáveis |
+| --- | --- | --- | --- |
+| 2.1 · P5 | Registrar o contrato aprovado sobre histórico compartilhado, dados legados e responsabilidade por mudanças. | `consultaLegadoEmExecucaoSemEventoDeAbertura` comprova consulta preservada com ações dependentes de ciclo indisponíveis. O RF014 lê `historico_execucao_frete` e ordena por data e ID. | Registro do acordo sobre fonte oficial dos metadados e comportamento compartilhado para eventos sem recibo ou sem abertura verificável. Josué (RF014), Gustavo e Walison (RF010). |
+| 2.3 · P5 | Validar os metadados de auditoria que o contrato aprovado expõe aos perfis autorizados. | Os recibos RF010 preservam estados, referência de ciclo ou interrupção e identidade da confirmação. Os testes de transição verificam vínculo e reenvio. A projeção atual do RF014 retorna data, tipo, autor, descrição e justificativa. | Contrato da 2.1 e um teste conjunto que confirme os campos acordados para eventos novos e legados, incluindo visibilidade por perfil. Josué conduz mudanças no RF014, com Gustavo e Walison na origem dos dados. |
+| 4.5 · P4 | Acordar como o RF013 recebe interrupção, retomada e encerramento confirmados, com política de destinatários e falhas. | Cada confirmação aceita tem um ID persistido. A referência local `origin/feat/rf013-notificacoes-internas` (`e62a986`) tem publicador e observador de solicitações com destinatário resolvido, sem ID do evento de origem. A tarefa 1.4 do RF013 prevê conectar execução/histórico. | Contrato aceito por Rafael (RF013), Gustavo e Walison (RF010) sobre mecanismo de consumo, identidade do fato, destinatários, falha e deduplicação. O observador consultado ainda não consome os três fatos do RF010. |
+| 5.4 · P4 | Demonstrar que o RF013 consome os fatos e entrega apenas os avisos previstos, inclusive em reenvio e falha. | O teste de retomada recupera o ID original. O de encerramento verifica o reenvio e a contagem de eventos. Ambos comprovam idempotência na origem. | Após 4.5, integração de evento a aviso que confira destinatários, total por evento e destinatário após reenvio e o resultado de falha conforme a política combinada. Rafael valida o consumo com Gustavo e Walison. |
+| 8.2 · P7 e P1 | Completar o percurso real do autônomo com designação, início e ações posteriores, conferindo autoria e a apresentação acordada em P1. | `designacaoDoAutonomoAindaBloqueiaOFluxoAntesDoInicio` comprova HTTP 422 e `AGUARDANDO_DESIGNACAO`. O cadastro atual grava o perfil em `prestador_autonomo` sem criar a associação em `motorista.usuario_id`. `DesignacaoService` ainda rejeita a designação do autônomo. A 8.5 comprova a autorização e a autoria em uma fixture de duplo vínculo. | RF002 precisa disponibilizar a associação real da conta ao motorista próprio e RF009 precisa persistir a designação válida até `PRONTO_INICIO`. Depois, Gustavo e Walison podem validar o percurso normal em PostgreSQL e Selenium com os responsáveis de RF002/RF009. O papel exibido depende da decisão P1. |
+
+P1 permanece como decisão pendente sobre o papel exibido no histórico. O RF010 grava `usuario_autor_id` e exibe “Por” seguido do nome da conta. A 8.5 cobre a identidade persistida no duplo vínculo. Gustavo e Walison ainda precisam definir qual papel exibir e como preservar seu significado histórico após troca de vínculo. Josué participa se a decisão afetar a projeção geral ou o esquema (P5). P1 também afeta o aceite da apresentação na 8.2, enquanto P7 bloqueia o próprio percurso. P5 vincula 2.1 e 2.3, e P4 vincula 4.5 e 5.4.
+
+Na revisão, passaram **44 testes**, sem falhas, erros ou casos ignorados, em JDK 21 e PostgreSQL 16 de teste. Foram 31 de transição RF010, 6 de consulta RF010 e 7 do serviço de histórico RF014. OpenSpec estrito e `git diff --check` também passaram.
+
+### Tarefa 8.5 — Conta responsável e motorista designada
+
+`TransicaoFreteIntegrationTest#contaResponsavelIniciaComoMotoristaDesignadoEPermaneceAutora` reutiliza o frete de pessoas 910061, o motorista verificado 910011 e o veículo elegível 910021 da fixture `rf010-consulta.sql`. A conta responsável 910002 autentica-se pelo login normal e confirma as ações com CSRF. No controle, o motorista designado está associado a outra conta. O POST de início responde HTTP 403, o frete permanece em `PRONTO_INICIO` e as consultas SQL verificam a ausência de evento, recibo e aviso.
+
+Após associar o motorista da fixture à conta 910002, a mesma sessão inicia o frete. O cenário confirma ocorrência, interrupção, retomada, nova interrupção e encerramento sem conclusão. Para cada confirmação, o teste verifica o resultado da API, o estado em `frete` e a autoria em `historico_execucao_frete` pelo ID do evento. Todos os seis eventos registram `usuario_autor_id = 910002`. O teste repõe o vínculo original ao sair.
+
+Execução em JDK 21 e PostgreSQL 16.14 temporário, com cópia limpa dos fontes do backend e schemas isolados pelo Flyway. O teste novo passou isoladamente antes da suíte. Em seguida, passaram os **37 testes de integração do RF010** (31 de transição e 6 de consulta), sem falhas, erros ou casos ignorados.
+
+```bash
+mvn -B -ntp '-Dtest=TransicaoFreteIntegrationTest#contaResponsavelIniciaComoMotoristaDesignadoEPermaneceAutora' test
+mvn -B -ntp -Dtest=ExecucaoFreteIntegrationTest,TransicaoFreteIntegrationTest test
+```
+
+`openspec validate rf010-acompanhamento-execucao-ocorrencias --strict` e `git diff --check` passaram.
+
+## Histórico das verificações
+
+### Etapa inicial de consulta
 
 Gustavo autorizou a implementação dos cenários independentes do RF010 na branch `feat/rf010-acompanhamento-ocorrencias`, incluindo o backend do próprio requisito. A base inicial foi `8c93a99`, com uma worktree e os seis artefatos OpenSpec já existentes como não rastreados. A consulta de PRs abertos não retornou resultados. As migrações da base vão até V10. V11 seria a próxima versão na branch, sem reserva de número ou migração nesta etapa.
 
@@ -224,11 +295,11 @@ O rascunho de uma ação em conflito era perdido ao atualizar. Agora a tela guar
 
 Em `ciclosNavegacaoTecladoERecuperacao`, o foco inicial é o título. Tab percorre data, horário, texto, situação da encomenda quando exibida, confirmação quando exigida, envio e retorno. Shift+Tab retorna ao envio e Enter com campos vazios leva o foco ao primeiro campo obrigatório, a data, nos três formulários. O teste de recuperação verifica o foco no alerta de conflito, no erro de consulta e no resultado confirmado. Os cartões empilham a 390 px. As capturas do RF010 estão em [evidencias/](evidencias/), em larguras de janela de 1360 e 390 px.
 
-**Comparação aprovada: 0 de 3 telas.** O documento de arquitetura disponível aponta para o protótipo geral (nó 11-2). Os três JPEGs identificados no design não foram localizados no projeto ou nos Downloads e não foi possível identificar os três frames aprovados nesse link. O arquivo local “MUV - Protótipo.zip” contém somente cadastro e autenticação. As capturas desta rodada registram a aplicação e ficam disponíveis para comparação quando a referência for confirmada.
+**Naquela rodada, 0 de 3 telas comparadas.** O documento de arquitetura disponível aponta para o protótipo geral (nó 11-2). Os três JPEGs identificados no design não foram localizados no projeto ou nos Downloads e não foi possível identificar os três frames aprovados nesse link. O arquivo local “MUV - Protótipo.zip” contém somente cadastro e autenticação. As capturas desta rodada registram a aplicação e ficam disponíveis para comparação quando a referência for confirmada.
 
 | Responsável | Pergunta para fechar o aceite |
 | --- | --- |
-| Gustavo e Walison, P6 | Quais são os links permanentes ou as três imagens aprovadas de registro/interrupção, retomada e encerramento? Com essas referências, a dupla pode concluir 7.5 e a parte visual de 1.4 e 6.2 na branch. |
+| Gustavo e Walison, P6 | Quais são os links permanentes ou as três imagens aprovadas de registro/interrupção, retomada e encerramento? Com essas referências, a dupla pode concluir 7.5 e a parte visual de 1.4 e 6.2 na branch. A comparação posterior consta abaixo. |
 | Gustavo e Walison com Josué, P2/P3 | Qual fuso e significado têm a data e a hora informadas frente ao instante de auditoria? Onde guardar e para quem exibir o local e a situação da encomenda? Isso afeta 1.4, 2.4 e 6.2. |
 | Josué com a dupla, P5 | O RF014 aceita os recibos RF010 como fonte de estados e vínculo de ciclo? Como tratar históricos legados sem evento que abra o ciclo? Falta esse acordo para 2.1 e 2.3. |
 | Rafael com a dupla, P4 | Para quais fatos e destinatários o RF013 deve emitir avisos e qual identificador usará para evitar duplicatas em reenvios? 4.5 e 5.4 aguardam o contrato. |
@@ -246,8 +317,8 @@ As referências fornecidas pela dupla estão preservadas em `evidencias/referenc
 
 | Referência e tela | Diferenças encontradas na captura anterior e ajustes no RF010 |
 | --- | --- |
-| [1000407677.jpg — Registre uma ocorrência](evidencias/referencias/1000407677.jpg) · [Desktop](evidencias/interrupcao-1360.png) · [390 px](evidencias/interrupcao-390.png) | O tipo estava fixo e faltavam o título “O que aconteceu?”, os indicadores de obrigatoriedade, o local e a explicação do histórico. O seletor agora permite ocorrência e interrupção conforme a elegibilidade. Tipo, data, horário e descrição ou justificativa são obrigatórios. O painel “Efeito deste registro” mostra a consequência da seleção e os recursos atuais. No modo de interrupção, as ações são “Registrar e interromper execução” e “Voltar sem registrar”. O local aparece desabilitado enquanto se decide sua coleta (P3). |
-| [1000407679.jpg — Retome a execução com segurança](evidencias/referencias/1000407679.jpg) · [Desktop](evidencias/retomada-1360.png) · [390 px](evidencias/retomada-390.png) | Faltavam o título “Registro de retomada”, as marcas nos campos e o texto sobre inclusão da justificativa no histórico. À esquerda ficam data, horário, justificativa, recursos compatíveis, aceite obrigatório de prosseguimento e “Confirmar retomada”. À direita ficam a interrupção em aberto com motivo e autoria, o efeito “Após confirmar: Em execução” e “Voltar ao acompanhamento”. O subtítulo usa o horário de registro disponível em UTC. O significado e o fuso do horário civil informado dependem de P2. |
+| [1000407677.jpg — Registre uma ocorrência](evidencias/referencias/1000407677.jpg) · [Desktop](evidencias/interrupcao-1360.png) · [390 px](evidencias/interrupcao-390.png) | O tipo estava fixo e faltavam o título “O que aconteceu?”, os indicadores de obrigatoriedade, o local e a explicação do histórico. O seletor agora permite ocorrência e interrupção conforme a elegibilidade. Tipo, data, horário e descrição ou justificativa são obrigatórios. O painel “Efeito deste registro” mostra a consequência da seleção e os recursos atuais. No modo de interrupção, as ações são “Registrar e interromper execução” e “Voltar sem registrar”. Naquela captura, o local ainda estava desabilitado. A V16 habilitou o campo opcional. |
+| [1000407679.jpg — Retome a execução com segurança](evidencias/referencias/1000407679.jpg) · [Desktop](evidencias/retomada-1360.png) · [390 px](evidencias/retomada-390.png) | Faltavam o título “Registro de retomada”, as marcas nos campos e o texto sobre inclusão da justificativa no histórico. À esquerda ficam data, horário, justificativa, recursos compatíveis, aceite obrigatório de prosseguimento e “Confirmar retomada”. À direita ficam a interrupção em aberto com motivo e autoria, o efeito “Após confirmar: Em execução” e “Voltar ao acompanhamento”. O subtítulo usa o horário de registro disponível em UTC. A decisão P2 foi aplicada posteriormente à apresentação do horário civil informado. |
 | [1000407681.jpg — Encerre sem marcar como concluído](evidencias/referencias/1000407681.jpg) · [Desktop](evidencias/encerramento-1360.png) · [390 px](evidencias/encerramento-390.png) | A captura anterior trazia interrupção e recursos extras no painel de revisão. O formulário ganhou “Motivo do encerramento”, a orientação sobre impossibilidade de retomada e as marcas nos campos obrigatórios. Data, horário, justificativa e aceite de não conclusão são exigidos. A situação da encomenda é opcional e específica da modalidade. O painel “Revise antes de confirmar” destaca “Esta ação não é uma conclusão”, o registro do motivo e do responsável, a ausência de entrega e o autor autenticado. A confirmação vermelha e “Voltar e manter interrompido” mantêm as ações do JPEG. |
 
 Nos três casos, o formulário fica à esquerda e o painel explicativo à direita no desktop. A identificação RF010 / MUV foi restabelecida. As capturas de teste usam o portal restrito do motorista, enquanto os JPEGs mostram o portal do prestador. O layout de conta permanece vinculado ao perfil real. Os avisos descrevem os efeitos persistidos pelo RF010. A promessa de notificar destinatários exibida nos três JPEGs depende do contrato com RF013 (P4). Os campos começam vazios e os aceites desmarcados para exigir confirmação do usuário.
@@ -258,7 +329,13 @@ O build, o ESLint de `src/features/execucao` e o cenário Selenium `PercursoExec
 
 A comparação com os três JPEGs conclui P6 e a tarefa **7.5**. O checklist passa a **31 de 39**. **1.4** e **6.2** seguem abertas pelas decisões P2 e P3, com a parte visual registrada acima. A política de notificações segue P4.
 
-### Aceite das oito tarefas restantes
+### Conferência com os anexos de registro e retomada
+
+O anexo `1000407926.jpg` confirma a disposição de “O que aconteceu?” e “Efeito deste registro”, com local opcional e ação de retorno. A captura atual mostra o local habilitado e reúne ocorrência e interrupção no seletor. O anexo `1000407928.jpg` confirma a disposição de “Registro de retomada” e “Interrupção em aberto”, com justificativa, recursos, aceite de prosseguimento e retorno. As capturas desktop mostram os pares de cartões. Nas capturas estreitas, o painel complementar fica abaixo do formulário e pode exigir rolagem. Para encerramento, a comparação usa o JPEG versionado `1000407681.jpg`, pois os dois anexos desta revisão cobrem as outras telas.
+
+As referências mostram o portal do prestador com valores preenchidos e mensagens de notificação. As evidências Selenium usam o portal do motorista, dados de teste, campos inicialmente vazios e avisos do efeito sobre o frete. Retomada e encerramento são ações próprias no acompanhamento de um frete interrompido. A comparação confirma estrutura e comportamento previstos para o RF010, com essas diferenças de perfil, conteúdo e navegação. A entrega dos avisos permanece em P4.
+
+### Pendências registradas antes da V16
 
 O fechamento depende das decisões abaixo. Os testes existentes de persistência e idempotência verificam o comportamento sob os contratos atuais.
 

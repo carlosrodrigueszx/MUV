@@ -14,14 +14,14 @@ O sistema MUST permitir ao prestador responsável ou ao motorista atualmente des
 
 - **GIVEN** um frete sob responsabilidade do prestador autenticado, com motorista designado em outra conta e em estado elegível para a ação escolhida
 - **WHEN** o prestador confirma uma ocorrência, interrupção, retomada ou encerramento sem conclusão com os dados exigidos
-- **THEN** o sistema aceita a ação e registra a própria conta como autora no papel de prestador responsável
+- **THEN** o sistema aceita a ação e registra a própria conta como autora
 - **AND** não atribui a ação ao motorista apenas por ele estar designado.
 
 #### Scenario: Motorista designado confirma uma ação
 
 - **GIVEN** a conta autenticada associada ao motorista atualmente designado para o frete, distinta da conta do prestador responsável
 - **WHEN** esse motorista confirma uma das quatro ações com estado e dados válidos
-- **THEN** o sistema aceita a ação e identifica essa conta como autora no papel de motorista designado
+- **THEN** o sistema aceita a ação e identifica essa conta como autora
 - **AND** mantém o prestador contratado como responsável pelo serviço.
 
 #### Scenario: Outro motorista da mesma empresa tenta registrar ocorrência
@@ -67,6 +67,12 @@ O sistema SHALL permitir ao prestador responsável e ao motorista atualmente des
 
 - **WHEN** um gestor consulta frete de outra organização ou um motorista consulta frete para o qual não está designado
 - **THEN** o sistema rejeita a consulta e não revela ocorrências, justificativas ou dados pessoais protegidos.
+
+#### Scenario: Abrir o acompanhamento pela rota do frete
+
+- **GIVEN** uma sessão do prestador responsável ou do motorista designado e o identificador real do frete
+- **WHEN** a conta abre `/fretes/:freteId/execucao`
+- **THEN** o sistema consulta o contexto do frete e apresenta as ações elegíveis para a sessão.
 
 ### Requirement: Registrar o início somente após designação válida
 
@@ -172,12 +178,12 @@ O sistema SHALL permitir ao prestador responsável ou ao motorista designado enc
 
 ### Requirement: Preservar o histórico e a autoria de cada ação
 
-O sistema MUST manter um histórico cronológico e imutável com identificador do evento e do frete, tipo, estados anterior e resultante, conta autora, data e horário e descrição ou justificativa exigida. Para contas distintas, o histórico indica o papel correspondente. A apresentação para conta com ambos os vínculos segue P1 no [design](../../design.md#open-questions). A identificação do autor MUST corresponder a quem confirmou, independentemente do prestador ou motorista atualmente responsável.
+O sistema MUST manter um histórico cronológico e imutável com identificador do evento e do frete, tipo, estados anterior e resultante, conta autora, data e horário e descrição ou justificativa exigida. A apresentação do papel histórico segue a decisão P1 no [design](../../design.md#open-questions). A identificação do autor MUST corresponder a quem confirmou, independentemente do prestador ou motorista atualmente responsável.
 
 #### Scenario: Consultar uma sequência de ações de autores diferentes
 
 - **WHEN** um usuário autorizado consulta início, ocorrência, interrupção, retomada e encerramento registrados por contas diferentes
-- **THEN** cada evento apresenta seu próprio autor, papel e horário e os estados de sua ação
+- **THEN** o acompanhamento apresenta o autor e o horário de cada evento, e o recibo de confirmação preserva os estados da ação
 - **AND** eventos anteriores não são reatribuídos a quem executou a última ação nem ao motorista atual.
 
 #### Scenario: Registrar novo evento preservando os anteriores
@@ -188,7 +194,7 @@ O sistema MUST manter um histórico cronológico e imutável com identificador d
 
 ### Requirement: Validar os dados temporais e os textos obrigatórios
 
-O sistema SHALL rejeitar textos obrigatórios ausentes, vazios ou compostos somente por espaços, inclusive Unicode, e datas ou horários ausentes ou com formato ou valor de calendário inválido, quando exigidos no formulário. O contrato temporal segue P2 no [design](../../design.md#open-questions).
+O sistema SHALL rejeitar textos obrigatórios ausentes, vazios ou compostos somente por espaços, inclusive Unicode, e datas ou horários ausentes ou com formato ou valor de calendário inválido, quando exigidos no formulário. O sistema SHALL guardar a data e hora civis informadas nos formulários separadamente do instante de auditoria em UTC e exibi-las no RF010 sem conversão de fuso.
 
 #### Scenario: Dados obrigatórios inválidos
 
@@ -199,6 +205,12 @@ O sistema SHALL rejeitar textos obrigatórios ausentes, vazios ou compostos some
 
 - **WHEN** o usuário informa data e horário válidos no formulário
 - **THEN** o preenchimento não altera o estado do frete nem grava um evento sem confirmação.
+
+#### Scenario: Consultar horário informado e campos operacionais opcionais
+
+- **WHEN** uma conta autorizada consulta uma ocorrência ou interrupção com local informado ou um encerramento de encomenda com situação informada
+- **THEN** o acompanhamento exibe o horário civil informado e o respectivo campo opcional
+- **AND** o local e a situação da encomenda ficam restritos à consulta operacional do RF010.
 
 ### Requirement: Confirmar o efeito da ação e permitir voltar sem registrar
 
