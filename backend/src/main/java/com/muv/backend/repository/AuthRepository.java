@@ -56,6 +56,28 @@ public class AuthRepository {
                 """).param("cnpj", cnpj).query(Boolean.class).single();
     }
 
+    public record AccountProfiles(boolean passageiro, boolean prestador, boolean motorista, boolean empresa) {
+        public boolean podeAtivarAutonomo() {
+            return passageiro && !prestador;
+        }
+    }
+
+    public AccountProfiles profiles(long id) {
+        return db.sql("""
+                SELECT EXISTS (SELECT 1 FROM passageiro WHERE id = :id) AS passageiro,
+                       EXISTS (SELECT 1 FROM prestador WHERE id = :id) AS prestador,
+                       EXISTS (SELECT 1 FROM motorista WHERE usuario_id = :id) AS motorista,
+                       EXISTS (SELECT 1 FROM prestador_empresa WHERE id = :id) AS empresa
+                """).param("id", id)
+                .query((row, index) -> new AccountProfiles(row.getBoolean("passageiro"),
+                        row.getBoolean("prestador"), row.getBoolean("motorista"), row.getBoolean("empresa")))
+                .single();
+    }
+
+    public boolean canActivateIndependent(long id) {
+        return profiles(id).podeAtivarAutonomo();
+    }
+
     public void insertProvider(long id) {
         db.sql("INSERT INTO prestador (id, conformidade_declarada_em) VALUES (:id, CURRENT_TIMESTAMP)")
                 .param("id", id).update();
@@ -79,6 +101,13 @@ public class AuthRepository {
     public void lockAccount(long id) {
         db.sql("SELECT id FROM usuario WHERE id = :id FOR UPDATE")
                 .param("id", id).query(Long.class).single();
+    }
+
+    public boolean hasActiveResetExpiringAfter(long id, LocalDateTime threshold) {
+        return db.sql("""
+                SELECT EXISTS (SELECT 1 FROM token_recuperacao
+                    WHERE id_usuario = :id AND usado_em IS NULL AND expira_em > :threshold)
+                """).param("id", id).param("threshold", threshold).query(Boolean.class).single();
     }
 
     public void insertReset(long id, String digest, LocalDateTime expiry) {

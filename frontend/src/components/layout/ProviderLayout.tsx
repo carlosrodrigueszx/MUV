@@ -46,8 +46,8 @@ export function ProviderLayout({
   areaLabel = "Área do prestador",
 }: ProviderLayoutProps) {
   const { pathname } = useLocation();
-  const portalHome = pathname.startsWith("/motorista/")
-    ? "/motorista/achados-perdidos" : "/prestador/solicitacoes";
+  const portalHome = pathname === "/motorista" || pathname.startsWith("/motorista/")
+    ? "/motorista" : "/prestador";
   const [session, setSession] = useState<Session | null | undefined>(readRecentSession);
   const companyPortal = session?.empresa && portalLabel === "PORTAL DO PRESTADOR";
   const displayPortalLabel = companyPortal ? "PORTAL DA EMPRESA" : portalLabel;

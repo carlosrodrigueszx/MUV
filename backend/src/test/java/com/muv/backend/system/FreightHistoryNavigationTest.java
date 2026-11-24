@@ -55,7 +55,7 @@ class FreightHistoryNavigationTest {
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("email"))).sendKeys(email);
             driver.findElement(By.name("senha")).sendKeys(password);
             driver.findElement(By.cssSelector("form button:not([type='button'])")).click();
-            wait.until(ExpectedConditions.urlToBe(base + "/cliente/planejar-viagem"));
+            wait.until(ExpectedConditions.urlToBe(base + ("prestador".equals(profilePath) ? "/prestador" : "/cliente/planejar-viagem")));
 
             if ("cliente".equals(profilePath)) {
                 driver.get(base + "/cliente/prestadores");

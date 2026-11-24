@@ -103,6 +103,39 @@ class AuthControllerTest {
     }
 
     @Test
+    void activatesIndependentProfileOnTheAuthenticatedPassengerAccount() throws Exception {
+        register();
+        long id = accounts.findAccount(EMAIL).orElseThrow().id();
+        String activation = """
+                {"cnh":"12345678901","categoriaCnh":"D","declarouConformidade":true}
+                """;
+        send("perfil/autonomo", activation, 401);
+        MockHttpSession session = login(PASSWORD, 204);
+        mvc.perform(get("/api/auth/sessao").session(session))
+                .andExpect(jsonPath("$.podeAtivarAutonomo").value(true));
+        mvc.perform(post("/api/auth/perfil/autonomo").session(session)
+                        .contentType("application/json").content(activation))
+                .andExpect(status().isForbidden());
+        send(session, "perfil/autonomo", activation.replace("true", "false"), 400);
+        send(session, "perfil/autonomo", activation, 204);
+        send(session, "perfil/autonomo", activation, 409);
+
+        mvc.perform(get("/api/auth/sessao").session(session))
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.podeAtivarAutonomo").value(false));
+        var profile = db.sql("""
+                SELECT a.habilitacao_cifrada, p.conformidade_declarada_em,
+                       EXISTS (SELECT 1 FROM autorizacao_modalidade WHERE id_prestador = p.id) AS autorizado
+                FROM passageiro c JOIN prestador p ON p.id = c.id
+                JOIN prestador_autonomo a ON a.id = p.id WHERE c.id = :id
+                """).param("id", id).query().singleRow();
+        assertThat(profile.get("habilitacao_cifrada")).asString().doesNotContain("12345678901");
+        assertThat(profile.get("conformidade_declarada_em")).isNotNull();
+        assertThat(profile.get("autorizado")).isEqualTo(false);
+        login(PASSWORD, 204);
+    }
+
+    @Test
     void rejectsDuplicateEmailIgnoringCaseAndDuplicateCpfIgnoringFormat() throws Exception {
         register();
         send("cadastro", REGISTRATION.replace(EMAIL, EMAIL.toUpperCase()).replace(CPF, "98765432100"), 409);
@@ -119,6 +152,18 @@ class AuthControllerTest {
                 .andExpect(status().isForbidden());
         assertThat(db.sql("SELECT COUNT(*) FROM usuario WHERE email = :email").param("email", EMAIL)
                 .query(Long.class).single()).isZero();
+    }
+
+    @Test
+    void describesInvalidNestedRegistrationFieldsInPortuguese() throws Exception {
+        String independent = """
+                {"conta":%s,"cnh":"123","categoriaCnh":"D","declarouConformidade":true}
+                """.formatted(REGISTRATION.replace(CPF, "123"));
+        var error = json.readTree(send("cadastro/autonomo", independent, 400)).get("detail").stringValue();
+        assertThat(error).contains("CPF", "CNH").doesNotContain("conta.cpf");
+        var malformed = json.readTree(send("cadastro", REGISTRATION.replace("1994-06-18", "18/06/1994"), 400));
+        assertThat(malformed.get("detail").stringValue()).contains("formato inválido");
+        assertThat(accounts.findAccount(EMAIL)).isEmpty();
     }
 
     @Test
@@ -155,6 +200,27 @@ class AuthControllerTest {
     }
 
     @Test
+    void throttlesRecoveryAcrossSessionsAndKeepsTheCurrentLinkDuringTheInterval() throws Exception {
+        register();
+        String recovery = "{\"email\":\"" + EMAIL + "\"}";
+        send("recuperacao", recovery, 202);
+        send("recuperacao", recovery, 202);
+        assertThat(events.stream(RecoveryMail.class)).hasSize(1);
+
+        db.sql("""
+                UPDATE token_recuperacao
+                SET expira_em = expira_em - INTERVAL '1 minute'
+                WHERE id_usuario = (SELECT id FROM usuario WHERE email = :email)
+                """).param("email", EMAIL).update();
+        send("recuperacao", recovery, 202);
+
+        var links = events.stream(RecoveryMail.class).toList();
+        assertThat(links).hasSize(2);
+        send("redefinicao", resetPayload(links.getFirst().token()), 400);
+        send("redefinicao", resetPayload(links.getLast().token()), 204);
+    }
+
+    @Test
     void rejectsExpiredReset() throws Exception {
         register();
         send("recuperacao", "{\"email\":\"" + EMAIL + "\"}", 202);
@@ -168,7 +234,11 @@ class AuthControllerTest {
     private void register() throws Exception { send("cadastro", REGISTRATION, 201); }
 
     private String send(String path, String body, int expected) throws Exception {
-        Csrf csrf = csrf(new MockHttpSession());
+        return send(new MockHttpSession(), path, body, expected);
+    }
+
+    private String send(MockHttpSession session, String path, String body, int expected) throws Exception {
+        Csrf csrf = csrf(session);
         return mvc.perform(post("/api/auth/" + path).session(csrf.session()).header(csrf.header(), csrf.token())
                         .contentType("application/json").content(body))
                 .andExpect(status().is(expected)).andReturn().getResponse().getContentAsString();
