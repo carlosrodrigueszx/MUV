@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import java.security.Principal;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -21,7 +22,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/prestadores")
-@CrossOrigin(origins = "*")
 public class DriverLinkingController {
 
     @Autowired
@@ -29,12 +29,16 @@ public class DriverLinkingController {
 
     @Autowired private com.muv.backend.service.DriverAccountService driverAccounts;
 
+    @Value("${muv.demo.dispensar-verificacao:false}")
+    private boolean dispensarVerificacao;
+
     private final PrestadorConsultaService prestadorConsultaService;
 
     public DriverLinkingController(PrestadorConsultaService prestadorConsultaService) {
         this.prestadorConsultaService = prestadorConsultaService;
     }
 
+    @CrossOrigin(origins = "*")
     @GetMapping("/consulta")
     public ResponseEntity<List<PrestadorConsultaResponse>> buscarPrestadores(
             @RequestParam(required = false) String modalidade,
@@ -48,18 +52,19 @@ public class DriverLinkingController {
 
     @GetMapping("/motoristas/perfil")
     public MotoristaVinculacaoPerfilResponse perfil(Principal principal) {
-        return driverLinkingService.perfil(principal.getName());
+        return driverLinkingService.perfil(email(principal));
     }
 
     @GetMapping("/{prestadorId}/motoristas")
     public List<MotoristaConsultaResponse> listarMotoristas(
             @PathVariable Long prestadorId, @RequestParam(defaultValue = "") String search,
             @RequestParam(defaultValue = "false") boolean aptos, Principal principal) {
-        driverLinkingService.autorizar(prestadorId, principal.getName());
+        driverLinkingService.autorizar(prestadorId, email(principal));
         String query = search.trim().toLowerCase(java.util.Locale.ROOT);
         String document = query.replaceAll("[^0-9]", "");
         return driverLinkingService.listarMotoristasPorPrestador(prestadorId).stream()
-                .filter(v -> !aptos || "VERIFICADO".equals(v.getStatusVerificacao()))
+                .filter(v -> !aptos || "VERIFICADO".equals(v.getStatusVerificacao())
+                        || (dispensarVerificacao && "PENDENTE".equals(v.getStatusVerificacao())))
                 .map(driverAccounts::resposta)
                 .filter(m -> m.nome().toLowerCase(java.util.Locale.ROOT).contains(query)
                         || m.cnh().contains(query)
@@ -71,7 +76,7 @@ public class DriverLinkingController {
     @GetMapping("/{prestadorId}/motoristas/busca")
     public MotoristaConsultaResponse buscarMotorista(@PathVariable Long prestadorId,
             @RequestParam String identifier, Principal principal) {
-        driverLinkingService.autorizar(prestadorId, principal.getName());
+        driverLinkingService.autorizar(prestadorId, email(principal));
         return driverAccounts.resposta(driverAccounts.buscar(identifier));
     }
 
@@ -80,7 +85,7 @@ public class DriverLinkingController {
     public MotoristaConsultaResponse cadastrarMotorista(@PathVariable Long prestadorId,
             @Valid @RequestBody MotoristaCadastroRequest data,
             Principal principal) {
-        driverLinkingService.autorizar(prestadorId, principal.getName());
+        driverLinkingService.autorizar(prestadorId, email(principal));
         return driverAccounts.resposta(driverLinkingService.cadastrarEVincularMotorista(prestadorId, data));
     }
 
@@ -88,7 +93,7 @@ public class DriverLinkingController {
     @ResponseStatus(HttpStatus.CREATED)
     public MotoristaConsultaResponse vincularMotorista(@PathVariable Long prestadorId,
             @PathVariable Long motoristaId, Principal principal) {
-        driverLinkingService.autorizar(prestadorId, principal.getName());
+        driverLinkingService.autorizar(prestadorId, email(principal));
         return driverAccounts.resposta(
                 driverLinkingService.vincularMotorista(prestadorId, motoristaId));
     }
@@ -98,9 +103,16 @@ public class DriverLinkingController {
             @PathVariable Long motoristaId,
             @Valid @RequestBody MotoristaVerificacaoRequest data,
             Principal principal) {
-        driverLinkingService.autorizar(prestadorId, principal.getName());
+        driverLinkingService.autorizar(prestadorId, email(principal));
         return driverAccounts.resposta(driverLinkingService.atualizarVerificacao(
                 prestadorId, motoristaId, data.statusVerificacao(), prestadorId));
+    }
+
+    private static String email(Principal principal) {
+        if (principal == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+        return principal.getName();
     }
 
     @ExceptionHandler(ResponseStatusException.class)

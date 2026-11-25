@@ -5,10 +5,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class ContratacaoRepository {
+    @Value("${muv.demo.dispensar-verificacao:false}")
+    private boolean dispensarVerificacao;
+
     private final JdbcTemplate jdbc;
 
     public ContratacaoRepository(JdbcTemplate jdbc) {
@@ -33,7 +37,7 @@ public class ContratacaoRepository {
     }
 
     public List<Proposta> propostas(long solicitacao) {
-        return jdbc.query("""
+        return jdbc.query(ModalidadesDemonstracao.aplicar("""
                 SELECT p.id, p.id_prestador, u.nome, CASE WHEN pe.id IS NOT NULL THEN 'EMPRESA' WHEN pa.id IS NOT NULL THEN 'AUTONOMO' END tipo, p.valor, p.condicoes, p.status,
                        CASE WHEN pr.total_avaliacoes > 0 THEN pr.avaliacao_media END avaliacao,
                        EXISTS (SELECT 1 FROM autorizacao_modalidade a
@@ -47,7 +51,7 @@ public class ContratacaoRepository {
                 JOIN usuario u ON u.id = pr.id
                 WHERE p.id_solicitacao = ?
                 ORDER BY p.criado_em, p.id
-                """, (rs, row) -> new Proposta(rs.getLong("id"), rs.getLong("id_prestador"),
+                """, dispensarVerificacao), (rs, row) -> new Proposta(rs.getLong("id"), rs.getLong("id_prestador"),
                 rs.getString("nome"), rs.getString("tipo"), rs.getBigDecimal("avaliacao"),
                 rs.getBoolean("autorizado"), rs.getBigDecimal("valor"), rs.getString("condicoes"),
                 rs.getString("status")), solicitacao);

@@ -1,6 +1,7 @@
 package com.muv.backend.service;
 
 import com.muv.backend.repository.AuthRepository;
+import com.muv.backend.repository.ModalidadesDemonstracao;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
@@ -9,6 +10,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class EnvioSolicitacaoService {
+    @Value("${muv.demo.dispensar-verificacao:false}")
+    private boolean dispensarVerificacao;
+
     private final JdbcTemplate db;
     private final AuthRepository accounts;
 
@@ -71,14 +76,16 @@ public class EnvioSolicitacaoService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe o valor e as condições da oferta juntos.");
         }
 
-        var elegiveis = db.query("""
+        String consultaVeiculo = """
                 SELECT v.id FROM veiculo v
                 JOIN autorizacao_modalidade a ON a.id_prestador = v.id_prestador
                 WHERE v.id = ? AND v.id_prestador = ? AND v.ativo
                   AND v.modalidade IN ('PESSOA', 'AMBOS') AND v.capacidade_passageiros >= ?
                   AND a.modalidade = 'PESSOA' AND a.status = 'APROVADO'
-                FOR SHARE OF v, a
-                """, (rs, row) -> rs.getLong(1), envio.veiculoId(), envio.prestadorId(), envio.passageiros());
+                """;
+        String bloqueio = dispensarVerificacao ? " FOR SHARE OF v" : " FOR SHARE OF v, a";
+        var elegiveis = db.query(ModalidadesDemonstracao.aplicar(consultaVeiculo, dispensarVerificacao) + bloqueio,
+                (rs, row) -> rs.getLong(1), envio.veiculoId(), envio.prestadorId(), envio.passageiros());
         if (elegiveis.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "O veículo deixou de ser compatível. Consulte os resultados novamente.");
         }

@@ -76,6 +76,28 @@ class FreightHistoryServiceTest {
     }
 
     @Test
+    void distinguePropostaEnviadaDeFreteProntoParaDesignar() {
+        var perfil = FreightHistoryProfile.PRESTADOR;
+        var data = LocalDateTime.of(2026, 11, 25, 21, 36);
+        when(repository.hasProfile(20L, perfil)).thenReturn(true);
+        when(repository.findHistory(20L, perfil, null, null, null)).thenReturn(List.of(
+                new FreightHistoryQueryRepository.HistoryRow(2L, null, "PESSOA", "Jandira", "São Paulo",
+                        data, data, "Passageiro", "1 pessoa", null, null, "ABERTA"),
+                new FreightHistoryQueryRepository.HistoryRow(3L, 7L, "PESSOA", "Jandira", "São Paulo",
+                        data, data, "Passageiro", "1 pessoa", BigDecimal.ONE, null, "AGUARDANDO_DESIGNACAO")));
+        when(repository.findProposals(2L, 20L, perfil)).thenReturn(List.of(
+                new FreightHistoryQueryRepository.ProposalRow(2L, "Empresa", BigDecimal.ONE, "ENVIADA")));
+        when(repository.findProposals(3L, 20L, perfil)).thenReturn(List.of(
+                new FreightHistoryQueryRepository.ProposalRow(3L, "Empresa", BigDecimal.ONE, "ACEITA")));
+
+        var registros = service.list(20L, perfil, null, null, null);
+
+        assertEquals("Enviada", registros.getFirst().proposals().getFirst().status());
+        assertEquals(false, registros.getFirst().podeDesignar());
+        assertEquals(true, registros.getLast().podeDesignar());
+    }
+
+    @Test
     void providerProfileIsPassedToRepositoryForAccessRestriction() {
         when(repository.hasProfile(20L, FreightHistoryProfile.PRESTADOR)).thenReturn(true);
         when(repository.findHistory(20L, FreightHistoryProfile.PRESTADOR, null, null, null))

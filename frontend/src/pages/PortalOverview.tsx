@@ -40,10 +40,10 @@ export default function PortalOverview({ driver = false }: { driver?: boolean })
   const { hash, key: locationKey } = useLocation();
 
   useEffect(() => {
-    if (allowed && hash === "#agenda") {
-      document.getElementById("agenda")?.scrollIntoView();
+    if (allowed && (hash === "#agenda" || (driver && hash === "#fretes-designados"))) {
+      document.getElementById(hash.slice(1))?.scrollIntoView();
     }
-  }, [allowed, hash, locationKey, overview]);
+  }, [allowed, driver, hash, locationKey, overview]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -134,17 +134,19 @@ export default function PortalOverview({ driver = false }: { driver?: boolean })
             ))}</ul>}
         </section>}
 
-        {driver && overview && overview.fretesAcompanhaveis.length > 0 && (
-          <section className={box} aria-labelledby="overview-execution">
+        {driver && (
+          <section id="fretes-designados" className={box} aria-labelledby="overview-execution">
             <h2 id="overview-execution" className="font-bold">Fretes designados</h2>
-            <ul className="mt-3 divide-y divide-slate-100">
+            {overview && (overview.fretesAcompanhaveis.length === 0
+              ? <p className="mt-4 text-sm text-slate-600">Nenhum frete designado para você.</p>
+              : <ul className="mt-3 divide-y divide-slate-100">
               {overview.fretesAcompanhaveis.map(({ freteId, origin, destination }) => (
                 <li key={freteId} className="flex flex-wrap items-center justify-between gap-2 py-3">
                   <p className="text-sm font-semibold">Frete #{freteId} · {origin} → {destination}</p>
                   <Link to={`/fretes/${freteId}/execucao`} className={action}>Acompanhar execução</Link>
                 </li>
               ))}
-            </ul>
+            </ul>)}
           </section>
         )}
 

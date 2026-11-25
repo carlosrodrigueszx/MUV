@@ -5,10 +5,14 @@ import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class SolicitacoesDisponiveisRepository {
+    @Value("${muv.demo.dispensar-verificacao:false}")
+    private boolean dispensarVerificacao;
+
     private final JdbcTemplate jdbc;
 
     public SolicitacoesDisponiveisRepository(JdbcTemplate jdbc) {
@@ -23,7 +27,7 @@ public class SolicitacoesDisponiveisRepository {
     public record Perfil(String nome, String tipo, List<String> modalidades, List<String> regioes) {}
 
     public java.util.Optional<Perfil> perfil(long prestador) {
-        return jdbc.query("""
+        return jdbc.query(ModalidadesDemonstracao.aplicar("""
                 SELECT COALESCE(NULLIF(e.nome_fantasia, ''), u.nome) AS nome,
                        CASE WHEN e.id IS NULL THEN 'Autônomo' ELSE 'Empresa' END AS tipo,
                        ARRAY(SELECT DISTINCT a.modalidade::text FROM autorizacao_modalidade a
@@ -32,7 +36,7 @@ public class SolicitacoesDisponiveisRepository {
                              FROM regiao_atuacao r WHERE r.id_prestador=p.id ORDER BY 1) AS regioes
                 FROM prestador p JOIN usuario u ON u.id=p.id
                 LEFT JOIN prestador_empresa e ON e.id=p.id WHERE p.id=?
-                """, (rs, row) -> new Perfil(rs.getString("nome"), rs.getString("tipo"),
+                """, dispensarVerificacao), (rs, row) -> new Perfil(rs.getString("nome"), rs.getString("tipo"),
                         List.of((String[]) rs.getArray("modalidades").getArray()),
                         List.of((String[]) rs.getArray("regioes").getArray())), prestador).stream().findFirst();
     }
@@ -46,7 +50,7 @@ public class SolicitacoesDisponiveisRepository {
     }
 
     public List<Item> listar(long prestador, String modalidade, String cidade, String estado, LocalDate data) {
-        return jdbc.query("""
+        return jdbc.query(ModalidadesDemonstracao.aplicar("""
                 SELECT s.id, s.modalidade, s.data_hora_pretendida, o.cidade origem_cidade,
                        o.estado origem_estado, d.cidade destino_cidade, d.estado destino_estado,
                        p.quantidade_pessoas, e.peso_estimado_kg, e.descricao_volumes,
@@ -68,7 +72,7 @@ public class SolicitacoesDisponiveisRepository {
                   AND (CAST(? AS text) IS NULL OR upper(o.estado)=upper(?))
                   AND (CAST(? AS date) IS NULL OR CAST(s.data_hora_pretendida AS date)=?)
                 ORDER BY s.data_hora_pretendida, s.id
-                """, (rs, row) -> new Item(rs.getLong("id"), rs.getString("modalidade"),
+                """, dispensarVerificacao), (rs, row) -> new Item(rs.getLong("id"), rs.getString("modalidade"),
                         rs.getObject("data_hora_pretendida", LocalDateTime.class),
                         rs.getString("origem_cidade"), rs.getString("origem_estado"),
                         rs.getString("destino_cidade"), rs.getString("destino_estado"),

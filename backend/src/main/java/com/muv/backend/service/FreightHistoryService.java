@@ -71,7 +71,7 @@ public class FreightHistoryService {
                         "P-" + proposal.id(),
                         proposal.provider(),
                         formatCurrency(proposal.amount()),
-                        proposalStatusLabel(proposal.status())))
+                        proposalStatusLabel(proposal.status(), row.status())))
                 .toList();
 
         var timeline = repository.findTimeline(row.freightId())
@@ -92,6 +92,9 @@ public class FreightHistoryService {
                 YearMonth.from(row.referenceDate()).toString(),
                 row.agreedValue() == null ? "Ainda não acordado" : formatCurrency(row.agreedValue()),
                 statusLabel(row.status()),
+                profile == FreightHistoryProfile.PRESTADOR
+                        && "AGUARDANDO_DESIGNACAO".equals(row.status())
+                        && proposals.stream().anyMatch(proposal -> "Aceita".equals(proposal.status())),
                 new FreightHistoryResponse.RequestDetails(
                         row.openedAt().format(DATE_FORMAT),
                         row.requestedBy(),
@@ -136,8 +139,10 @@ public class FreightHistoryService {
         };
     }
 
-    private String proposalStatusLabel(String status) {
-        return "ACEITA".equals(status) ? "Aceita" : "Encerrada";
+    private String proposalStatusLabel(String status, String solicitationStatus) {
+        if ("ACEITA".equals(status)) return "Aceita";
+        if ("ENVIADA".equals(status) && "ABERTA".equals(solicitationStatus)) return "Enviada";
+        return "Encerrada";
     }
 
     private String eventLabel(String eventType) {

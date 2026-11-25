@@ -133,15 +133,17 @@ export function ProviderLayout({
                 </span>
               );
             }
-            const currentKey = portalHome === "/motorista" && activeNavKey === "overview" && hash === "#agenda"
-              ? "agenda" : activeNavKey;
+            const anchorNav = portalHome === "/motorista" && activeNavKey === "overview"
+              ? driverNavItems.find((item) => hash && item.to === portalHome + hash)
+              : undefined;
+            const currentKey = anchorNav?.key ?? activeNavKey;
             const active = key === currentKey;
             const badge = key === "requests" && requestPath ? requestCount : navBadges[key];
             return (
               <Link
                 key={key}
                 to={to}
-                aria-current={active ? (key === "agenda" ? "location" : "page") : undefined}
+                aria-current={active ? (anchorNav ? "location" : "page") : undefined}
                 className={`flex h-[46px] shrink-0 items-center gap-3 rounded-[10px] px-[13px] text-[13px] leading-[19px] font-medium transition-colors ${
                   active
                     ? "bg-[#e5f2ee] text-[#17695b]"

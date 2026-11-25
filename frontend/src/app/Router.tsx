@@ -53,6 +53,7 @@ export const Router: React.FC = () => {
         <Route path="/prestador/achados-perdidos/novo" element={<RegistrarAchadoPage />} />
         <Route path="/motorista/achados-perdidos" element={<AchadosPerdidosPage />} />
         <Route path="/motorista/achados-perdidos/novo" element={<RegistrarAchadoPage />} />
+        <Route path="/prestador/fretes" element={<FreightHistory fretesEmpresa />} />
         <Route path="/prestador/fretes/:id/designacao" element={<DesignarRecursosPage />} />
         <Route path="/prestador/fretes/:id/substituicao" element={<SubstituirRecursosPage />} />
         <Route path="/cliente/solicitacoes/:id/propostas" element={<CompararPropostas />} />

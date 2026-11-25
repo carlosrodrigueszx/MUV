@@ -22,7 +22,7 @@ function initialFilters(profile: FreightHistoryFilters["profile"], month = "2026
   };
 }
 
-export default function FreightHistory() {
+export default function FreightHistory({ fretesEmpresa = false }: { fretesEmpresa?: boolean }) {
   const location = useLocation();
   const routeProfile: FreightHistoryFilters["profile"] = location.pathname.startsWith("/prestador/")
     ? "prestador"
@@ -33,7 +33,8 @@ export default function FreightHistory() {
   const request = query.get("solicitacao");
   const period = freight || request ? query.get("periodo") : null;
   return <FreightHistoryContent
-    key={routeProfile + location.search}
+    key={location.pathname + location.search}
+    fretesEmpresa={fretesEmpresa}
     routeProfile={routeProfile}
     preferredId={freight ? `FR-${freight}` : request ? `SL-${request}` : null}
     period={period && /^\d{4}-(0[1-9]|1[0-2])$/.test(period) ? period : undefined}
@@ -41,10 +42,12 @@ export default function FreightHistory() {
 }
 
 function FreightHistoryContent({
+  fretesEmpresa,
   routeProfile,
   preferredId,
   period,
 }: {
+  fretesEmpresa: boolean;
   routeProfile: FreightHistoryFilters["profile"];
   preferredId: string | null;
   period?: string;
@@ -57,8 +60,10 @@ function FreightHistoryContent({
       }),
     [],
   );
-  const [draftFilters, setDraftFilters] = useState(() => initialFilters(routeProfile, period));
-  const [appliedFilters, setAppliedFilters] = useState(() => initialFilters(routeProfile, period));
+  const [draftFilters, setDraftFilters] = useState<FreightHistoryFilters>(() => fretesEmpresa
+    ? { ...initialFilters(routeProfile, ""), status: "Contratado" }
+    : initialFilters(routeProfile, period));
+  const [appliedFilters, setAppliedFilters] = useState(draftFilters);
   const [records, setRecords] = useState<FreightHistoryRecord[]>([]);
   const [allowedProfiles, setAllowedProfiles] = useState<AccountProfile[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(preferredId);
@@ -106,9 +111,10 @@ function FreightHistoryContent({
     void historyService
       .list(appliedFilters, controller.signal)
       .then((result) => {
-        setRecords(result);
+        const visible = fretesEmpresa ? result.filter((record) => record.id.startsWith("FR-")) : result;
+        setRecords(visible);
         setSelectedId((current) =>
-          result.some((record) => record.id === current) ? current : (result[0]?.id ?? null),
+          visible.some((record) => record.id === current) ? current : (visible[0]?.id ?? null),
         );
       })
       .catch((requestError: unknown) => {
@@ -133,7 +139,7 @@ function FreightHistoryContent({
       });
 
     return () => controller.abort();
-  }, [allowedProfiles, appliedFilters, historyService, navigate, requestVersion]);
+  }, [allowedProfiles, appliedFilters, fretesEmpresa, historyService, navigate, requestVersion]);
 
   const alternateProfile = allowedProfiles && !allowedProfiles.includes(routeProfile)
     ? allowedProfiles[0] : undefined;
@@ -146,13 +152,13 @@ function FreightHistoryContent({
   }, [hash, loading, preferredId, selectedRecord]);
 
   const content = <>
-    <p className="text-[11px] font-bold tracking-wide text-[#176A5B]">RF014 / MUV</p>
+    {!fretesEmpresa && <p className="text-[11px] font-bold tracking-wide text-[#176A5B]">RF014 / MUV</p>}
     <h1 className="mt-7 text-3xl font-extrabold tracking-tight text-[#203139] sm:text-[34px]">
-      Seu histórico de fretes
+      {fretesEmpresa ? "Fretes da empresa" : "Seu histórico de fretes"}
     </h1>
-    <p className="mt-5 text-sm text-slate-500">
+    {!fretesEmpresa && <p className="mt-5 text-sm text-slate-500">
       Consulte solicitações, propostas e serviços da sua conta — como cliente ou prestador.
-    </p>
+    </p>}
 
     {alternateProfile ? (
       <section className="mt-7 rounded-xl border border-slate-200 bg-white p-5 text-sm">
@@ -168,6 +174,7 @@ function FreightHistoryContent({
     ) : <div className="mt-7 space-y-6">
       <HistoryFilters
         filters={draftFilters}
+        fretesEmpresa={fretesEmpresa}
         allowedProfiles={allowedProfiles ?? [routeProfile]}
         onChange={setDraftFilters}
         onSubmit={() => {
@@ -198,7 +205,7 @@ function FreightHistoryContent({
   </>;
 
   if (routeProfile === "prestador") {
-    return <ProviderLayout pageTitle="Histórico" activeNavKey="history"
+    return <ProviderLayout pageTitle={fretesEmpresa ? "Fretes" : "Histórico"} activeNavKey={fretesEmpresa ? "freights" : "history"}
       profileLabel="Prestador" isOnline={null} passengerPortalHref="/cliente/planejar-viagem">
       {content}
     </ProviderLayout>;

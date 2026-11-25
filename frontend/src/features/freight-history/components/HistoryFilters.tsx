@@ -2,6 +2,7 @@ import type { AccountProfile, FreightHistoryFilters } from "../types";
 
 interface HistoryFiltersProps {
   filters: FreightHistoryFilters;
+  fretesEmpresa?: boolean;
   allowedProfiles: AccountProfile[];
   onChange: (filters: FreightHistoryFilters) => void;
   onSubmit: () => void;
@@ -15,7 +16,7 @@ const profileLabels: Record<AccountProfile, string> = {
   prestador: "Prestador",
 };
 
-export function HistoryFilters({ filters, allowedProfiles, onChange, onSubmit }: HistoryFiltersProps) {
+export function HistoryFilters({ filters, fretesEmpresa, allowedProfiles, onChange, onSubmit }: HistoryFiltersProps) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
       <h2 className="mb-5 text-lg font-bold text-slate-800">Encontre um registro</h2>
@@ -64,7 +65,7 @@ export function HistoryFilters({ filters, allowedProfiles, onChange, onSubmit }:
             <option value="Concluído">Concluído</option>
             <option value="Cancelado">Cancelado</option>
             <option value="Encerrado sem conclusão">Encerrado sem conclusão</option>
-            <option value="Proposta enviada">Proposta enviada</option>
+            {!fretesEmpresa && <option value="Proposta enviada">Proposta enviada</option>}
           </select>
         </label>
 
@@ -75,6 +76,7 @@ export function HistoryFilters({ filters, allowedProfiles, onChange, onSubmit }:
             value={filters.month}
             onChange={(event) => onChange({ ...filters, month: event.target.value })}
           >
+            {fretesEmpresa && <option value="">Todos os períodos</option>}
             <option value="2026-11">Novembro de 2026</option>
             <option value="2026-10">Outubro de 2026</option>
           </select>
