@@ -51,18 +51,29 @@ public class EnvioSolicitacaoService {
             @DecimalMin("0.01") @Digits(integer = 11, fraction = 2) BigDecimal valor,
             @Size(max = 4000) String condicoes) {}
 
-    @Transactional
-    public long enviar(String email, Envio envio) {
-        long passageiro = accounts.findAccount(email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED)).id();
-        if (db.query("SELECT id FROM passageiro WHERE id = ? FOR UPDATE",
-                (rs, row) -> rs.getLong(1), passageiro).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Esta conta não tem perfil de passageiro.");
+    public record ItinerarioEstimativa(
+            @NotNull @Valid Endereco origem,
+            @NotNull @Valid Endereco destino,
+            @NotNull @Size(max = 50) List<@NotNull @Valid Endereco> paradas) {
+        public List<String> enderecos() {
+            var pontos = new java.util.ArrayList<String>();
+            pontos.add(enderecoViario(origem));
+            paradas.forEach(parada -> pontos.add(enderecoViario(parada)));
+            pontos.add(enderecoViario(destino));
+            return pontos;
         }
 
-        var anterior = db.query("SELECT id FROM solicitacao_frete WHERE id_passageiro = ? AND chave_envio = ?",
-                (rs, row) -> rs.getLong(1), passageiro, envio.chave());
-        if (!anterior.isEmpty()) return anterior.getFirst();
+        private static String enderecoViario(Endereco endereco) {
+            return String.join(", ", endereco.logradouro().trim(), endereco.numero().trim(),
+                    endereco.cidade(), endereco.estado().toUpperCase(Locale.ROOT));
+        }
+    }
+
+    @Transactional
+    public long enviar(String email, Envio envio, EstimativaFreteService.Estimativa estimativa) {
+        long passageiro = bloquearPassageiro(email);
+        Long anterior = envioAnterior(passageiro, envio.chave());
+        if (anterior != null) return anterior;
 
         if (passageiro == envio.prestadorId()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escolha outro prestador.");
@@ -74,6 +85,11 @@ public class EnvioSolicitacaoService {
         String condicoes = envio.condicoes() == null || envio.condicoes().isBlank() ? null : envio.condicoes().trim();
         if ((envio.valor() == null) != (condicoes == null)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe o valor e as condições da oferta juntos.");
+        }
+
+        if (estimativa.piso() != null && envio.valor() != null && envio.valor().compareTo(estimativa.piso()) < 0) {
+            String piso = java.text.NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")).format(estimativa.piso());
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Informe uma oferta de pelo menos " + piso + " ou envie sem oferta.");
         }
 
         String consultaVeiculo = """
@@ -95,10 +111,10 @@ public class EnvioSolicitacaoService {
         long id = db.queryForObject("""
                 INSERT INTO solicitacao_frete (modalidade, data_hora_pretendida, retorno_previsto, status,
                     id_passageiro, id_prestador, endereco_origem_id, endereco_destino_id,
-                    valor_cliente, condicoes_cliente, chave_envio)
-                VALUES ('PESSOA', ?, ?, 'ABERTA', ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                    valor_cliente, condicoes_cliente, chave_envio, percurso_km)
+                VALUES ('PESSOA', ?, ?, 'ABERTA', ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                 """, Long.class, envio.partida(), envio.retorno(), passageiro, envio.prestadorId(),
-                origem, destino, envio.valor(), condicoes, envio.chave());
+                origem, destino, envio.valor(), condicoes, envio.chave(), estimativa.distanciaKm());
         db.update("INSERT INTO solicitacao_pessoa (id, quantidade_pessoas) VALUES (?, ?)", id, envio.passageiros());
         int ordem = 1;
         for (Endereco parada : envio.paradas()) {
@@ -110,6 +126,33 @@ public class EnvioSolicitacaoService {
                 VALUES ('Nova solicitação direcionada', 'Consulte o roteiro e responda à solicitação.', ?, ?)
                 """, envio.prestadorId(), id);
         return id;
+    }
+
+    public Long consultarEnvioPessoa(String email, UUID chave) {
+        long passageiro = localizarConta(email);
+        if (db.query("SELECT id FROM passageiro WHERE id = ?", (rs, row) -> rs.getLong(1), passageiro).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Esta conta não tem perfil de passageiro.");
+        }
+        return chave == null ? null : envioAnterior(passageiro, chave);
+    }
+
+    private long localizarConta(String email) {
+        return accounts.findAccount(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED)).id();
+    }
+
+    private long bloquearPassageiro(String email) {
+        long passageiro = localizarConta(email);
+        if (db.query("SELECT id FROM passageiro WHERE id = ? FOR UPDATE",
+                (rs, row) -> rs.getLong(1), passageiro).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Esta conta não tem perfil de passageiro.");
+        }
+        return passageiro;
+    }
+
+    private Long envioAnterior(long passageiro, UUID chave) {
+        return db.query("SELECT id FROM solicitacao_frete WHERE id_passageiro = ? AND chave_envio = ?",
+                (rs, row) -> rs.getLong(1), passageiro, chave).stream().findFirst().orElse(null);
     }
 
     private long gravarEndereco(Endereco endereco) {

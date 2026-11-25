@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { EstimativaFrete, type Estimativa } from "../freight-estimate/EstimativaFrete";
 import type { TripCriteria } from "./criteria";
 
 const fields = [
@@ -19,6 +20,10 @@ export function DirectedRequestForm({ trip, providerId, vehicleId }: {
   const attempt = useRef<{ payload: string; key: string } | undefined>(undefined);
   const pending = useRef(false);
   const [busy, setBusy] = useState(false);
+  const [estimativa, setEstimativa] = useState<Estimativa>();
+  const [consultando, setConsultando] = useState(false);
+  const [retirarOferta, setRetirarOferta] = useState(false);
+  const revisaoEnderecos = useRef(0);
   const [error, setError] = useState("");
   const [requestId, setRequestId] = useState<number>();
   const points = [
@@ -27,18 +32,51 @@ export function DirectedRequestForm({ trip, providerId, vehicleId }: {
     { label: "Destino", value: trip.destination },
   ];
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (pending.current) return;
-    const data = new FormData(event.currentTarget);
-    const addresses = points.map((_, index) => Object.fromEntries(fields.map(({ key }) =>
+  function lerEnderecos(data: FormData) {
+    return points.map((_, index) => Object.fromEntries(fields.map(({ key }) =>
       [key, String(data.get(`${index}.${key}`) ?? "").trim()],
     )));
+  }
+
+  async function consultarEstimativa(form: HTMLFormElement | null) {
+    if (!form?.reportValidity() || consultando) return;
+    const revisao = revisaoEnderecos.current;
+    const addresses = lerEnderecos(new FormData(form));
+    setConsultando(true);
+    setError("");
+    try {
+      const csrf = await fetch("/api/auth/csrf", { cache: "no-store" });
+      if (!csrf.ok) throw new Error();
+      const { headerName, token } = await csrf.json() as { headerName: string; token: string };
+      const response = await fetch("/api/cliente/solicitacoes?estimativa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", [headerName]: token },
+        body: JSON.stringify({ origem: addresses[0], destino: addresses.at(-1), paradas: addresses.slice(1, -1) }),
+      });
+      if (!response.ok) throw new Error();
+      const resultado = await response.json() as Estimativa;
+      if (revisaoEnderecos.current === revisao) setEstimativa(resultado);
+    } catch {
+      if (revisaoEnderecos.current === revisao) setError("Não foi possível consultar a estimativa do frete.");
+    } finally {
+      setConsultando(false);
+    }
+  }
+
+  const abaixoDoPiso = !retirarOferta && trip.offer != null && estimativa?.piso != null
+    && Math.round(Number(trip.offer.amount) * 100) < Math.round(estimativa.piso * 100);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending.current || abaixoDoPiso) return;
+    const data = new FormData(event.currentTarget);
+    const addresses = lerEnderecos(data);
     const body = {
       prestadorId: providerId, veiculoId: vehicleId, passageiros: trip.passengers,
       partida: trip.departure, retorno: trip.returnAt, origem: addresses[0],
       destino: addresses.at(-1), paradas: addresses.slice(1, -1),
-      valor: trip.offer?.amount, condicoes: trip.offer?.terms,
+      valor: retirarOferta ? undefined : trip.offer?.amount,
+      condicoes: retirarOferta ? undefined : trip.offer?.terms,
     };
     const payload = JSON.stringify(body);
     if (attempt.current?.payload !== payload) attempt.current = { payload, key: crypto.randomUUID() };
@@ -84,14 +122,34 @@ export function DirectedRequestForm({ trip, providerId, vehicleId }: {
           {fields.map(field => <label key={field.key} className="grid gap-1 text-sm">
             {field.label}
             <input name={`${index}.${field.key}`} required maxLength={field.maxLength}
+              onChange={() => {
+                revisaoEnderecos.current += 1;
+                setEstimativa(undefined);
+              }}
               pattern={"pattern" in field ? field.pattern : undefined}
               className="min-w-0 rounded-md border border-slate-300 px-3 py-2" />
           </label>)}
         </div>
       </fieldset>
     ))}
+    <div className="grid gap-2 text-sm">
+      <button type="button" disabled={busy || consultando} className="w-fit rounded-md border px-3 py-2"
+        onClick={event => void consultarEstimativa(event.currentTarget.form)}>
+        {consultando ? "Calculando…" : "Consultar valor estimado"}
+      </button>
+      {estimativa && <EstimativaFrete estimativa={estimativa} />}
+      {estimativa?.piso != null && <p role="status" className={abaixoDoPiso ? "text-red-700" : ""}>
+        {abaixoDoPiso ? "Sua oferta está abaixo do mínimo de " : "Oferta mínima de "}
+        {estimativa.piso.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}.
+      </p>}
+      {trip.offer && <label className="flex items-center gap-2">
+        <input type="checkbox" disabled={busy} checked={retirarOferta}
+          onChange={event => setRetirarOferta(event.target.checked)} />
+        Enviar sem a oferta inicial
+      </label>}
+    </div>
     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-    <button disabled={busy} className="w-fit rounded-lg bg-[#17695b] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+    <button disabled={busy || abaixoDoPiso} className="w-fit cursor-pointer rounded-lg bg-[#17695b] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
       {busy ? "Enviando…" : "Enviar solicitação direcionada"}
     </button>
   </form>;
