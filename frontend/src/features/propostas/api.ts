@@ -1,3 +1,5 @@
+import type { Estimativa } from "../freight-estimate/EstimativaFrete";
+
 export type Avaliacao = {
   id: number;
   modalidade: "PESSOA" | "ENCOMENDA";
@@ -28,9 +30,16 @@ type Coordenada = { latitude: number; longitude: number };
 export type Rota = {
   pontos: { endereco: string; horario: string | null; coordenada: Coordenada | null }[];
   geometria: Coordenada[];
+  estimativa?: Estimativa;
+  limiteProposta?: {
+    ativo: boolean;
+    teto: number | null;
+    versao: string | null;
+    motivo: string | null;
+  };
 };
 
-export async function obterPercurso(id: string, signal: AbortSignal): Promise<Rota> {
+export async function obterPercurso(id: string, signal?: AbortSignal): Promise<Rota> {
   const res = await fetch(base(id) + "/avaliacao/percurso", { signal, cache: "no-store" });
   await conferir(res);
   return res.json();
@@ -41,14 +50,23 @@ function base(id: string) {
 }
 
 export class ConflitoProposta extends Error {}
+export class ReferenciaPropostaAlterada extends Error {}
 
 async function conferir(res: Response) {
   if (res.ok) return;
+  if (res.status === 409 || res.status === 422) {
+    const problema = await res.json().catch(() => null) as { codigo?: string; detail?: string } | null;
+    if (problema?.codigo === "ESTIMATIVA_DESATUALIZADA" || problema?.codigo === "ESTIMATIVA_INDISPONIVEL"
+        || problema?.codigo === "VALOR_ACIMA_DO_TETO") {
+      throw new ReferenciaPropostaAlterada(problema.detail ?? "Revise o limite da proposta antes de enviar.");
+    }
+  }
   const mensagens: Record<number, string> = {
     400: "Confira o valor e a justificativa.",
     401: "Entre novamente para responder.",
     403: "Sua sessão ou permissão não permite esta operação.",
     404: "Solicitação indisponível.",
+    422: "Confira o limite da proposta.",
     409: "A solicitação foi encerrada ou a oferta mudou. Atualize a avaliação.",
   };
   if (res.status === 409) throw new ConflitoProposta(mensagens[409]);

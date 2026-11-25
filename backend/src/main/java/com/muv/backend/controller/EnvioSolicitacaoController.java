@@ -1,6 +1,8 @@
 package com.muv.backend.controller;
 
 import com.muv.backend.service.EnvioSolicitacaoService;
+import com.muv.backend.service.EnvioSolicitacaoService.ItinerarioEstimativa;
+import com.muv.backend.service.EstimativaFreteService;
 import com.muv.backend.service.EnvioSolicitacaoService.Envio;
 import jakarta.validation.Valid;
 import java.security.Principal;
@@ -14,14 +16,27 @@ import org.springframework.web.server.ResponseStatusException;
 public class EnvioSolicitacaoController {
     private final EnvioSolicitacaoService service;
 
-    public EnvioSolicitacaoController(EnvioSolicitacaoService service) {
+    private final EstimativaFreteService estimativas;
+
+    public EnvioSolicitacaoController(EnvioSolicitacaoService service, EstimativaFreteService estimativas) {
         this.service = service;
+        this.estimativas = estimativas;
     }
 
-    @PostMapping
+    @PostMapping(params = "estimativa")
+    public EstimativaFreteService.Estimativa estimar(@Valid @RequestBody ItinerarioEstimativa itinerario, Principal principal) {
+        service.consultarEnvioPessoa(principal.getName(), null);
+        return estimativas.calcularParaEnderecos("PESSOA", itinerario.enderecos());
+    }
+
+    @PostMapping(params = "!estimativa")
     @ResponseStatus(HttpStatus.CREATED)
     public Criada enviar(@Valid @RequestBody Envio envio, Principal principal) {
-        return new Criada(service.enviar(principal.getName(), envio));
+        Long anterior = service.consultarEnvioPessoa(principal.getName(), envio.chave());
+        if (anterior != null) return new Criada(anterior);
+        var itinerario = new ItinerarioEstimativa(envio.origem(), envio.destino(), envio.paradas());
+        var estimativa = estimativas.calcularParaEnderecos("PESSOA", itinerario.enderecos());
+        return new Criada(service.enviar(principal.getName(), envio, estimativa));
     }
 
     @ExceptionHandler(ResponseStatusException.class)

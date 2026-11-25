@@ -117,7 +117,9 @@ class FluxoDemonstracaoIntegrationTest {
         var solicitacaoId = envio.enviar("cliente909@example.test",
                 new Envio(UUID.randomUUID(), 909002, carro.id(), 4,
                         LocalDateTime.now(ZoneId.of("America/Fortaleza")).plusDays(1), null,
-                        origem, destino, List.of(), valor, condicoes));
+                        origem, destino, List.of(), valor, condicoes),
+                new com.muv.backend.service.EstimativaFreteService.Estimativa(
+                        null, null, null, null, null, null, null, null, null, null, null, "Sem referência de teste."));
 
         assertThat(solicitacoes.listar(909002, "PESSOA", null, null, null))
                 .anyMatch(s -> s.id() == solicitacaoId && s.autorizada());

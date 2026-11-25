@@ -67,6 +67,19 @@ export function ProviderLayout({
   const requestPath = providerId && (!inDriverPortal || !session?.empresa)
     ? `${portalHome}/solicitacoes` : undefined;
   const [requestCount, setRequestCount] = useState(0);
+  const areaHome = portalLabel === "PORTAL DO MOTORISTA" ? "/motorista" : portalHome;
+  const autonomous = inDriverPortal && session?.prestador && !session.empresa;
+  const portalNav = (inDriverPortal ? driverNavItems : navItems).map(item => {
+    if (autonomous && item.key === "requests") return { ...item, to: "/motorista/solicitacoes" };
+    if (autonomous && item.key === "vehicles") return { ...item, to: "/motorista/veiculos", label: "Veículos" };
+    return item;
+  });
+  const section = portalNav.find(item => item.key === activeNavKey);
+  const sectionPath = section?.to;
+  const parentSection = sectionPath && sectionPath !== areaHome && pathname.startsWith(sectionPath + "/")
+    ? section : undefined;
+  const breadcrumbLink = "cursor-pointer rounded-sm hover:text-[#17695b] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2";
+
 
   useEffect(() => {
     if (!requestPath || providerId === undefined) return;
@@ -119,11 +132,7 @@ export function ProviderLayout({
         </span>
 
         <nav aria-label={displayPortalLabel} className="flex gap-[7px] overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
-          {(portalHome === "/motorista" ? driverNavItems : navItems).map(({ key, label: itemLabel, to: itemPath, icon: Icon }) => {
-            const autonomous = inDriverPortal && session?.prestador && !session.empresa;
-            const to = autonomous && key === "requests" ? "/motorista/solicitacoes"
-              : autonomous && key === "vehicles" ? "/motorista/veiculos" : itemPath;
-            const label = autonomous && key === "vehicles" ? "Veículos" : itemLabel;
+          {portalNav.map(({ key, label, to, icon: Icon }) => {
             if (!to) {
               return (
                 <span key={key} aria-disabled="true"
@@ -202,10 +211,22 @@ export function ProviderLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Barra superior */}
         <header className="flex min-h-20 shrink-0 flex-wrap items-center justify-between gap-3 bg-white px-4 py-4 sm:px-6 md:h-20 md:px-9 md:py-0">
-          <nav aria-label="Navegação estrutural" className="flex items-center gap-2.5 text-[13px] leading-[19px]">
-            <span className="text-[#637479]">{inDriverPortal ? "Área do motorista" : companyPortal ? "Área da empresa" : areaLabel}</span>
-            <LuChevronRight size={14} className="text-[#637479]" />
-            <span className="font-semibold text-[#1d2d32]">{pageTitle}</span>
+          <nav aria-label="Navegação estrutural" className="flex flex-wrap items-center gap-2.5 text-[13px] leading-[19px]">
+            <Link to={areaHome} className={`text-[#637479] ${breadcrumbLink}`}>
+              {areaHome === "/motorista" ? "Área do motorista" : companyPortal ? "Área da empresa" : areaLabel}
+            </Link>
+            <LuChevronRight aria-hidden="true" size={14} className="shrink-0 text-[#637479]" />
+            {parentSection?.to && (
+              <>
+                <Link to={parentSection.to} className={`text-[#637479] ${breadcrumbLink}`}>
+                  {parentSection.key === "requests" ? "Solicitações abertas" : parentSection.label}
+                </Link>
+                <LuChevronRight aria-hidden="true" size={14} className="shrink-0 text-[#637479]" />
+              </>
+            )}
+            {sectionPath === pathname && sectionPath !== areaHome
+              ? <Link to={sectionPath} aria-current="page" className={`font-semibold text-[#1d2d32] ${breadcrumbLink}`}>{pageTitle}</Link>
+              : <span aria-current="page" className="font-semibold text-[#1d2d32]">{pageTitle}</span>}
           </nav>
 
           <div className="flex items-center gap-[18px]">
