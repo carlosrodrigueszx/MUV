@@ -21,6 +21,8 @@ public class PortalOverviewController {
     private static final Set<String> ACTIVE = Set.of(
             "AGUARDANDO_DESIGNACAO", "PRONTO_INICIO", "EM_EXECUCAO", "INTERROMPIDO");
 
+    private static final Set<String> ACOMPANHAVEIS = Set.of("PRONTO_INICIO", "EM_EXECUCAO", "INTERROMPIDO");
+
     private final AuthRepository accounts;
     private final JdbcClient db;
     private final Clock clock;
@@ -48,6 +50,7 @@ public class PortalOverviewController {
         var firstMonth = month.minusMonths(5);
         var trips = db.sql("""
                 SELECT f.status, f.data_hora_conclusao, s.data_hora_pretendida,
+                       CASE WHEN m.usuario_id = :id THEN f.id END AS frete_designado_id,
                        o.cidade AS origem, d.cidade AS destino,
                        CASE WHEN :provider THEN f.valor_atual ELSE NULL END AS valor
                 FROM frete f
@@ -61,7 +64,7 @@ public class PortalOverviewController {
                 ORDER BY s.data_hora_pretendida, f.id
                 """).param("provider", provider).param("id", id)
                 .param("start", firstMonth.atDay(1).atStartOfDay())
-                .query((row, index) -> new Trip(row.getString("status"),
+                .query((row, index) -> new Trip(row.getObject("frete_designado_id", Long.class), row.getString("status"),
                         row.getObject("data_hora_conclusao", LocalDateTime.class),
                         row.getObject("data_hora_pretendida", LocalDateTime.class),
                         row.getString("origem"), row.getString("destino"), row.getBigDecimal("valor")))
@@ -80,15 +83,21 @@ public class PortalOverviewController {
         var upcoming = trips.stream().filter(trip -> ACTIVE.contains(trip.status()) && !trip.departure().isBefore(now))
                 .limit(4).map(trip -> new AgendaItem(trip.departure(), trip.origin(), trip.destination())).toList();
 
+        List<FreteAcompanhavel> fretesAcompanhaveis = companyPortal ? List.of() : trips.stream()
+                .filter(trip -> trip.freteDesignadoId() != null && ACOMPANHAVEIS.contains(trip.status()))
+                .map(trip -> new FreteAcompanhavel(trip.freteDesignadoId(), trip.origin(), trip.destination()))
+                .toList();
+
         return new Overview(completed.size(), trips.stream().filter(trip -> ACTIVE.contains(trip.status())).count(),
-                amount, rating, chart, upcoming);
+                amount, rating, chart, upcoming, fretesAcompanhaveis);
     }
 
     public enum Portal { PRESTADOR, MOTORISTA }
     public record Overview(long completed, long active, BigDecimal amount, BigDecimal rating,
-                           List<Month> chart, List<AgendaItem> upcoming) {}
+                           List<Month> chart, List<AgendaItem> upcoming, List<FreteAcompanhavel> fretesAcompanhaveis) {}
+    public record FreteAcompanhavel(long freteId, String origin, String destination) {}
     public record Month(String month, long completed) {}
     public record AgendaItem(LocalDateTime departure, String origin, String destination) {}
-    private record Trip(String status, LocalDateTime completedAt, LocalDateTime departure,
+    private record Trip(Long freteDesignadoId, String status, LocalDateTime completedAt, LocalDateTime departure,
                         String origin, String destination, BigDecimal amount) {}
 }

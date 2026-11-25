@@ -10,10 +10,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class PrestadorConsultaRepository {
+    @Value("${muv.demo.dispensar-verificacao:false}")
+    private boolean dispensarVerificacao;
+
     private final JdbcClient db;
 
     public PrestadorConsultaRepository(JdbcClient db) {
@@ -86,7 +90,7 @@ public class PrestadorConsultaRepository {
         }
         sql.append(" ORDER BY p.id, am.modalidade, r.estado, r.cidade, v.id");
 
-        JdbcClient.StatementSpec query = db.sql(sql.toString());
+        JdbcClient.StatementSpec query = db.sql(ModalidadesDemonstracao.aplicar(sql.toString(), dispensarVerificacao));
         if (modalidade != null) query.param("modalidade", modalidade);
         if (quantidadePassageiros != null) query.param("quantidadePassageiros", quantidadePassageiros);
         if (cidade != null) query.param("cidade", "%" + cidade + "%");
