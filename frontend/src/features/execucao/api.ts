@@ -13,7 +13,7 @@ export type RecursosExecucao = {
 
 export type EventoExecucao = {
   id: number;
-  tipo: AcaoExecucao;
+  tipo: AcaoExecucao | "CONCLUSAO";
   autor: string;
   descricao: string | null;
   justificativa: string | null;
@@ -32,7 +32,7 @@ export type Acompanhamento = {
   cicloExecucaoId: number | null;
   interrupcaoId: number | null;
   eventos: EventoExecucao[];
-  acoesElegiveis: AcaoExecucao[];
+  acoesElegiveis: (AcaoExecucao | "CONCLUSAO")[];
   prestadorResponsavel: boolean;
   usuarioAutenticado: string;
 };
@@ -82,7 +82,7 @@ export type TransicaoConfirmada = {
 export class ErroTransicao extends Error {
   readonly status: number;
 
-  constructor(status: number) {
+  constructor(status: number, detalhe?: string) {
     const mensagens: Record<number, string> = {
       400: "Verifique a data, o horário, a justificativa e os campos de confirmação.",
       401: "Entre na sua conta para confirmar a ação.",
@@ -90,7 +90,7 @@ export class ErroTransicao extends Error {
       404: "Frete não encontrado.",
       409: "A confirmação entrou em conflito com o estado do frete. Atualize o acompanhamento.",
     };
-    super(mensagens[status] ?? "Não foi possível verificar o resultado da confirmação.");
+    super(detalhe ?? mensagens[status] ?? "Não foi possível verificar o resultado da confirmação.");
     this.status = status;
   }
 }
@@ -98,13 +98,6 @@ export class ErroTransicao extends Error {
 export async function registrarTransicao(
   freteId: number, acao: AcaoTransicao, comando: ComandoTransicao | ComandoInicio,
 ): Promise<TransicaoConfirmada> {
-  const signal = AbortSignal.timeout(15_000);
-  const csrf = await fetch(`${API}/api/auth/csrf`, {
-    credentials: "include", cache: "no-store", signal,
-  });
-  if (!csrf.ok) throw new ErroTransicao(csrf.status);
-  const { headerName, token } = await csrf.json() as { headerName: string; token: string };
-
   const recursos: Record<AcaoTransicao, string> = {
     INICIO: "inicio",
     OCORRENCIA: "ocorrencias",
@@ -112,8 +105,45 @@ export async function registrarTransicao(
     RETOMADA: "retomadas",
     ENCERRAMENTO_SEM_CONCLUSAO: "encerramento-sem-conclusao",
   };
-  const recurso = recursos[acao];
-  const resposta = await fetch(`${API}/api/fretes/${freteId}/execucao/${recurso}`, {
+  const resposta = await postarOperacao(freteId, recursos[acao], comando);
+  if (!resposta.ok) {
+    const problema = await resposta.json().catch(() => null) as { detail?: string } | null;
+    throw new ErroTransicao(resposta.status, problema?.detail);
+  }
+  return resposta.json() as Promise<TransicaoConfirmada>;
+}
+
+export async function concluirFrete(freteId: number, comando: {
+  revisaoDesignacao: number;
+  cicloExecucaoId: number | null;
+  data?: string;
+  horario?: string;
+  nomeRecebedor?: string;
+  cpfRecebedor?: string;
+}): Promise<void> {
+  const resposta = await postarOperacao(freteId, "conclusao", comando);
+  if (resposta.ok) return;
+  const problema = await resposta.json().catch(() => null) as { detail?: string } | null;
+  const mensagens: Record<number, string> = {
+    400: "Os dados da entrega não puderam ser lidos. Confira o formato da data e da hora.",
+    401: "Sua sessão terminou. Entre novamente para confirmar a conclusão.",
+    403: "A confirmação exige uma sessão válida do motorista designado. Volte ao acompanhamento.",
+    404: "O frete não foi encontrado.",
+    409: "O frete foi atualizado. Volte ao acompanhamento e tente novamente.",
+  };
+  throw new Error(problema?.detail ?? mensagens[resposta.status]
+    ?? "O servidor não confirmou a conclusão. Confira o histórico antes de tentar novamente.");
+}
+
+async function postarOperacao(freteId: number, recurso: string, comando: object): Promise<Response> {
+  const signal = AbortSignal.timeout(15_000);
+  const csrf = await fetch(`${API}/api/auth/csrf`, {
+    credentials: "include", cache: "no-store", signal,
+  });
+  if (!csrf.ok) throw new ErroTransicao(csrf.status);
+  const { headerName, token } = await csrf.json() as { headerName: string; token: string };
+
+  return fetch(`${API}/api/fretes/${freteId}/execucao/${recurso}`, {
     method: "POST",
     credentials: "include",
     cache: "no-store",
@@ -121,6 +151,4 @@ export async function registrarTransicao(
     body: JSON.stringify(comando),
     signal,
   });
-  if (!resposta.ok) throw new ErroTransicao(resposta.status);
-  return resposta.json() as Promise<TransicaoConfirmada>;
 }

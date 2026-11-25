@@ -71,18 +71,69 @@ class TransicaoFreteIntegrationTest {
         db.sql("DELETE FROM historico_execucao_frete WHERE frete_id = 910061").update();
         db.sql("""
                 UPDATE frete SET status = 'PRONTO_INICIO', revisao_designacao = 1, motorista_atual_id = 910011,
-                    veiculo_atual_id = 910021 WHERE id = 910061
+                    veiculo_atual_id = 910021, data_hora_conclusao = NULL,
+                    responsavel_registro_conclusao_id = NULL WHERE id = 910061
                 """).update();
         db.sql("DELETE FROM rf010_recibo_ocorrencia WHERE frete_id = 910063").update();
         db.sql("DELETE FROM rf010_recibo_encerramento WHERE frete_id = 910063").update();
         db.sql("DELETE FROM rf010_recibo_retomada WHERE frete_id = 910063").update();
         db.sql("DELETE FROM rf010_recibo_interrupcao WHERE frete_id = 910063").update();
         db.sql("DELETE FROM historico_execucao_frete WHERE frete_id = 910063 AND id > 910074").update();
+        db.sql("DELETE FROM notificacao WHERE frete_id = 910063 AND titulo = 'Frete concluído'").update();
         db.sql("ALTER SEQUENCE historico_execucao_frete_id_seq RESTART WITH 910075").update();
         db.sql("""
-                UPDATE frete SET status = 'EM_EXECUCAO', motorista_atual_id = 910011, revisao_designacao = 1
-                WHERE id = 910063
+                UPDATE frete SET status = 'EM_EXECUCAO', motorista_atual_id = 910011, revisao_designacao = 1,
+                    data_hora_conclusao = NULL, responsavel_registro_conclusao_id = NULL,
+                    nome_destinatario = NULL, cpf_destinatario = NULL WHERE id = 910063
                 """).update();
+    }
+
+    @Test
+    void rf012ConcluiEncomendaSomenteComMotoristaAtualSemDuplicarEventoOuNotificacao() throws Exception {
+        var motorista = entrar("atual");
+        var prestador = entrar("empresa");
+        String rota = ROTA + "/conclusao";
+        String comando = """
+                {"revisaoDesignacao":1,"cicloExecucaoId":910073,"data":"2026-11-23","horario":"09:00",
+                 "nomeRecebedor":"Pessoa de Teste","cpfRecebedor":"529.982.247-25"}
+                """;
+        enviarComando(rota, prestador, comando, 403);
+        enviarComando(rota, motorista, "{\"revisaoDesignacao\":1,\"cicloExecucaoId\":910073}", 400);
+        enviarComando(rota, motorista, comando.replace("910073", "910074"), 409);
+        var cpfInvalido = enviarComando(rota, motorista, comando.replace("529.982.247-25", "111.111.111-11"), 400);
+        assertThat(json.readTree(cpfInvalido.getResponse().getContentAsString()).get("detail").asText())
+                .contains("CPF informado é inválido");
+        enviarComando(rota, motorista, comando, 204);
+        enviarComando(rota, motorista, comando, 204);
+        enviarComando(rota, motorista, comando.replace("09:00", "09:01"), 409);
+        assertThat(db.sql("SELECT status FROM frete WHERE id = 910063").query(String.class).single())
+                .isEqualTo("CONCLUIDO");
+        assertThat(db.sql("SELECT cpf_destinatario FROM frete WHERE id = 910063").query(String.class).single())
+                .isEqualTo("52998224725");
+        assertThat(db.sql("SELECT count(*) FROM historico_execucao_frete WHERE frete_id = 910063 AND tipo_evento = 'CONCLUSAO'")
+                .query(Long.class).single()).isEqualTo(1);
+        assertThat(db.sql("SELECT count(*) FROM notificacao WHERE frete_id = 910063 AND usuario_destino_id = 910001 AND titulo = 'Frete concluído'")
+                .query(Long.class).single()).isEqualTo(1);
+        mvc.perform(get(ROTA).session(motorista.session())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventos[0].tipo").value("CONCLUSAO"))
+                .andExpect(jsonPath("$.acoesElegiveis").isEmpty());
+        mvc.perform(get("/api/cliente/fretes/910063").session(entrar("cliente").session()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.frete.conclusao.nomeRecebedor").value("Pessoa de Teste"))
+                .andExpect(jsonPath("$.frete.conclusao.cpfRecebedor").doesNotExist());
+    }
+
+    @Test
+    void rf012ConcluiPessoasComHorarioAutomaticoAposInicio() throws Exception {
+        var motorista = entrar("atual");
+        var resultado = enviarComando(INICIO, motorista, dadosInicio(), 200);
+        long ciclo = json.readTree(resultado.getResponse().getContentAsString()).get("eventoId").asLong();
+        String comando = """
+                {"revisaoDesignacao":1,"cicloExecucaoId":%d}
+                """.formatted(ciclo);
+        enviarComando(PESSOAS + "/conclusao", motorista, comando, 204);
+        assertThat(db.sql("SELECT data_hora_conclusao FROM frete WHERE id = 910061")
+                .query(LocalDateTime.class).single()).isNotNull();
     }
 
     private String dadosInicio() {

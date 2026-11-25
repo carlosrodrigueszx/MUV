@@ -16,7 +16,8 @@ public class ExecucaoFreteSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/fretes/*/execucao/inicio",
                                 "/api/fretes/*/execucao/interrupcoes", "/api/fretes/*/execucao/ocorrencias",
                                 "/api/fretes/*/execucao/retomadas",
-                                "/api/fretes/*/execucao/encerramento-sem-conclusao").authenticated()
+                                "/api/fretes/*/execucao/encerramento-sem-conclusao",
+                                "/api/fretes/*/execucao/conclusao").authenticated()
                         .anyRequest().denyAll())
                 .requestCache(cache -> cache.disable())
                 .exceptionHandling(errors -> errors.authenticationEntryPoint((req, res, ex) -> res.setStatus(401)))

@@ -72,7 +72,7 @@ public class EnvioSolicitacaoService {
     @Transactional
     public long enviar(String email, Envio envio, EstimativaFreteService.Estimativa estimativa) {
         long passageiro = bloquearPassageiro(email);
-        Long anterior = envioAnterior(passageiro, envio.chave());
+        Long anterior = envioAnterior(passageiro, envio.chave(), "PESSOA");
         if (anterior != null) return anterior;
 
         if (passageiro == envio.prestadorId()) {
@@ -121,10 +121,62 @@ public class EnvioSolicitacaoService {
             db.update("INSERT INTO solicitacao_parada (id_solicitacao, ordem, endereco_id) VALUES (?, ?, ?)",
                     id, ordem++, gravarEndereco(parada));
         }
+        notificarPrestador(envio.prestadorId(), id);
+        return id;
+    }
+
+    public record Contato(@NotBlank @Size(max = 100) String nome,
+                          @NotBlank @Size(max = 20) String telefone,
+                          @Size(max = 255) String instrucoes) {}
+
+    public record EnvioEncomenda(
+            @NotNull UUID chave, @Positive long prestadorId,
+            @NotNull LocalDateTime partida,
+            @NotNull @Valid Endereco origem, @NotNull @Valid Endereco destino,
+            @NotBlank @Size(max = 255) String descricaoVolumes,
+            @NotNull @Positive @Digits(integer = 8, fraction = 2) BigDecimal pesoKg,
+            @NotNull @Positive @Digits(integer = 5, fraction = 2) BigDecimal alturaCm,
+            @NotNull @Positive @Digits(integer = 5, fraction = 2) BigDecimal larguraCm,
+            @NotNull @Positive @Digits(integer = 5, fraction = 2) BigDecimal profundidadeCm,
+            @NotNull @Valid Contato coleta, @NotNull @Valid Contato entrega) {}
+
+    @Transactional
+    public long enviarEncomenda(String email, EnvioEncomenda envio) {
+        long passageiro = bloquearPassageiro(email);
+        Long anterior = envioAnterior(passageiro, envio.chave(), "ENCOMENDA");
+        if (anterior != null) return anterior;
+        if (passageiro == envio.prestadorId() || !envio.partida().isAfter(LocalDateTime.now(ZoneId.of("America/Fortaleza")))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Confira o destinatário e o horário de coleta.");
+        }
+        var elegiveis = db.query("""
+                SELECT v.id FROM veiculo v
+                JOIN autorizacao_modalidade a ON a.id_prestador = v.id_prestador
+                WHERE v.id_prestador = ? AND v.ativo
+                  AND v.modalidade IN ('ENCOMENDA', 'AMBOS') AND v.capacidade_carga_kg >= ?
+                  AND a.modalidade = 'ENCOMENDA' AND a.status = 'APROVADO'
+                ORDER BY v.id LIMIT 1 FOR SHARE OF v, a
+                """, (rs, row) -> rs.getLong(1), envio.prestadorId(), envio.pesoKg());
+        if (elegiveis.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "O prestador não possui autorização e veículo ativo compatível com o peso informado.");
+        }
+        long origem = gravarEndereco(envio.origem());
+        long destino = gravarEndereco(envio.destino());
+        long id = db.queryForObject("""
+                INSERT INTO solicitacao_frete (modalidade, data_hora_pretendida, status, id_passageiro,
+                    id_prestador, endereco_origem_id, endereco_destino_id, chave_envio)
+                VALUES ('ENCOMENDA', ?, 'ABERTA', ?, ?, ?, ?, ?) RETURNING id
+                """, Long.class, envio.partida(), passageiro, envio.prestadorId(), origem, destino, envio.chave());
         db.update("""
-                INSERT INTO notificacao (titulo, mensagem, usuario_destino_id, solicitacao_id)
-                VALUES ('Nova solicitação direcionada', 'Consulte o roteiro e responda à solicitação.', ?, ?)
-                """, envio.prestadorId(), id);
+                INSERT INTO solicitacao_encomenda (id, descricao_volumes, peso_estimado_kg,
+                    altura_cm, largura_cm, profundidade_cm, nome_contato_coleta, telefone_contato_coleta,
+                    instrucoes_coleta, nome_contato_entrega, telefone_contato_entrega, instrucoes_entrega)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, id, envio.descricaoVolumes().strip(), envio.pesoKg(), envio.alturaCm(), envio.larguraCm(),
+                envio.profundidadeCm(), envio.coleta().nome().strip(), envio.coleta().telefone().strip(),
+                envio.coleta().instrucoes(), envio.entrega().nome().strip(), envio.entrega().telefone().strip(),
+                envio.entrega().instrucoes());
+        notificarPrestador(envio.prestadorId(), id);
         return id;
     }
 
@@ -133,7 +185,7 @@ public class EnvioSolicitacaoService {
         if (db.query("SELECT id FROM passageiro WHERE id = ?", (rs, row) -> rs.getLong(1), passageiro).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Esta conta não tem perfil de passageiro.");
         }
-        return chave == null ? null : envioAnterior(passageiro, chave);
+        return chave == null ? null : envioAnterior(passageiro, chave, "PESSOA");
     }
 
     private long localizarConta(String email) {
@@ -150,9 +202,22 @@ public class EnvioSolicitacaoService {
         return passageiro;
     }
 
-    private Long envioAnterior(long passageiro, UUID chave) {
-        return db.query("SELECT id FROM solicitacao_frete WHERE id_passageiro = ? AND chave_envio = ?",
-                (rs, row) -> rs.getLong(1), passageiro, chave).stream().findFirst().orElse(null);
+    private Long envioAnterior(long passageiro, UUID chave, String modalidade) {
+        return db.query("""
+                SELECT id, modalidade FROM solicitacao_frete WHERE id_passageiro = ? AND chave_envio = ?
+                """, (rs, row) -> {
+                    if (!modalidade.equals(rs.getString("modalidade"))) {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT, "A chave já foi usada em outra modalidade.");
+                    }
+                    return rs.getLong("id");
+                }, passageiro, chave).stream().findFirst().orElse(null);
+    }
+
+    private void notificarPrestador(long prestador, long id) {
+        db.update("""
+                INSERT INTO notificacao (titulo, mensagem, usuario_destino_id, solicitacao_id)
+                VALUES ('Nova solicitação direcionada', 'Consulte o roteiro e responda à solicitação.', ?, ?)
+                """, prestador, id);
     }
 
     private long gravarEndereco(Endereco endereco) {

@@ -67,7 +67,9 @@ function useSubmit(submit: (data: Record<string, string>) => Promise<void>) {
     try {
       await submit(values);
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Não foi possível concluir.");
+      setError(failure instanceof TypeError || (failure instanceof DOMException && failure.name === "TimeoutError")
+        ? "A conexão com o servidor falhou. Verifique a conexão e tente novamente."
+        : failure instanceof Error ? failure.message : "Não foi possível concluir.");
     } finally {
       setBusy(false);
     }
@@ -140,13 +142,13 @@ export function LoginPage() {
       <Field name="senha" label="Senha de acesso" placeholder="Digite sua senha cadastrada" secret icon={<LuLockKeyhole size={16} />} autoComplete="current-password" maxLength={72} />
       <Link to="/recuperar-senha" className={`block text-right text-sm ${linkStyle}`}>Esqueceu a senha?</Link>
       <Feedback error={error} />
-      <button className={`flex w-full items-center justify-center gap-2 ${buttonStyle}`} disabled={busy}>
+      <button className={`flex w-full items-center justify-center gap-2 enabled:cursor-pointer disabled:cursor-wait ${buttonStyle}`} disabled={busy}>
         {busy ? "Entrando…" : "Entrar"} <LuArrowRight aria-hidden="true" size={16} />
       </button>
     </form>
-    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-100 p-3 text-sm">
+    <div className="mt-5 flex flex-col items-center gap-3 rounded-lg bg-slate-100 p-3 text-center text-sm">
       <p className="font-medium">Ainda não tem cadastro no MUV?</p>
-      <Link to="/cadastro" className={buttonStyle}>Criar nova conta</Link>
+      <Link to="/cadastro" className={`cursor-pointer ${buttonStyle}`}>Criar nova conta</Link>
     </div>
   </AuthCard>;
 }

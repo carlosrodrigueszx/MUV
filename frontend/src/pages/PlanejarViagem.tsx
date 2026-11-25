@@ -62,14 +62,16 @@ export default function PlanejarViagem() {
     return <Navigate to={destination} replace />;
   }
 
-  const trip = (state as TripNavigationState | null)?.trip;
-  return <TripPlanner key={`${session.id}:${key}`} session={session} sessionError={sessionError} trip={trip} />;
+  const { trip, prestadorId } = (state as TripNavigationState | null) ?? {};
+  return <TripPlanner key={`${session.id}:${key}`} session={session} sessionError={sessionError}
+    trip={trip} prestadorId={prestadorId} />;
 }
 
-function TripPlanner({ session, sessionError, trip }: {
+function TripPlanner({ session, sessionError, trip, prestadorId }: {
   session: Session;
   sessionError: string;
   trip?: TripCriteria;
+  prestadorId?: number;
 }) {
   const navigate = useNavigate();
   const [formError, setFormError] = useState("");
@@ -117,7 +119,7 @@ function TripPlanner({ session, sessionError, trip }: {
           }
           // Keep the submitted criteria on both entries so browser Back also restores them.
           saveTripDraft(session.id, result.trip);
-          const state = { trip: result.trip };
+          const state = { trip: result.trip, prestadorId };
           navigate("/cliente/planejar-viagem", { replace: true, state });
           navigate("/cliente/prestadores", { state });
         }}>

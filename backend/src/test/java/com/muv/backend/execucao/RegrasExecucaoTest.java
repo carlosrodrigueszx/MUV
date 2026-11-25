@@ -18,6 +18,7 @@ class RegrasExecucaoTest {
         assertThat(INICIO.estadoResultante()).isEqualTo("EM_EXECUCAO");
         assertThat(OCORRENCIA.estadoResultante()).isEqualTo("EM_EXECUCAO");
         assertThat(INTERRUPCAO.estadoResultante()).isEqualTo("INTERROMPIDO");
+        assertThat(CONCLUSAO.estadoResultante()).isEqualTo("CONCLUIDO");
         assertThat(RETOMADA.estadoResultante()).isEqualTo("EM_EXECUCAO");
         assertThat(ENCERRAMENTO_SEM_CONCLUSAO.estadoResultante()).isEqualTo("ENCERRADO_SEM_CONCLUSAO");
     }
@@ -27,6 +28,7 @@ class RegrasExecucaoTest {
         var pares = Map.of(
                 INICIO, new Contexto("PRONTO_INICIO", 1, null, null),
                 OCORRENCIA, new Contexto("EM_EXECUCAO", 1, 16L, null),
+                CONCLUSAO, new Contexto("EM_EXECUCAO", 1, 16L, null),
                 INTERRUPCAO, new Contexto("EM_EXECUCAO", 1, 16L, null),
                 RETOMADA, new Contexto("INTERROMPIDO", 1, null, 17L),
                 ENCERRAMENTO_SEM_CONCLUSAO, new Contexto("INTERROMPIDO", 1, null, 17L));
@@ -37,7 +39,7 @@ class RegrasExecucaoTest {
                         .as("%s em %s para motorista", acao, contexto.estado()).isEqualTo(estadoCorreto);
                 assertThat(novaConfirmacaoElegivel(acao, prestador, contexto, contexto, true))
                         .as("%s em %s para prestador", acao, contexto.estado())
-                        .isEqualTo(estadoCorreto && acao != INICIO);
+                        .isEqualTo(estadoCorreto && acao != INICIO && acao != CONCLUSAO);
                 assertThat(novaConfirmacaoElegivel(acao, vinculos(4, 2, 3L), contexto, contexto, true))
                         .isFalse();
             }

@@ -16,6 +16,9 @@ public class PrestadorConsultaService {
 
     private final PrestadorConsultaRepository repository;
 
+    @org.springframework.beans.factory.annotation.Value("${muv.consulta.raio-km:50}")
+    private double raioKm = 50;
+
     public PrestadorConsultaService(PrestadorConsultaRepository repository) {
         this.repository = repository;
     }
@@ -45,6 +48,32 @@ public class PrestadorConsultaService {
                     "Informe uma quantidade positiva de passageiros para a modalidade de pessoas.");
         }
         return repository.buscar("PESSOA", cidadeNormalizada, estadoNormalizado, tipoNormalizado, quantidadePassageiros);
+    }
+
+    public List<PrestadorConsultaResponse> buscar(String modalidade, String cidade, String estado,
+            String tipo, Integer quantidadePassageiros, Integer municipioCodigo) {
+        if (municipioCodigo == null) {
+            return buscar(modalidade, cidade, estado, tipo, quantidadePassageiros);
+        }
+        String modalidadeNormalizada = normalizeOption(modalidade, MODALIDADES, "modalidade");
+        if (modalidadeNormalizada == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selecione a modalidade de frete.");
+        }
+        if (quantidadePassageiros != null
+                && (quantidadePassageiros < 1 || !"PESSOA".equals(modalidadeNormalizada))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Informe uma quantidade positiva de passageiros para a modalidade de pessoas.");
+        }
+        String tipoNormalizado = normalizeOption(tipo, TIPOS, "tipo");
+        if (!repository.existeMunicipio(municipioCodigo)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selecione um município válido.");
+        }
+        return repository.buscarRegional(modalidadeNormalizada, tipoNormalizado, quantidadePassageiros,
+                municipioCodigo, raioKm);
+    }
+
+    public List<PrestadorConsultaResponse.Municipio> listarMunicipios() {
+        return repository.listarMunicipios();
     }
 
     private String normalizeOption(String value, Set<String> options, String field) {

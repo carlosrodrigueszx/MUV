@@ -59,11 +59,12 @@ public class ExecucaoFreteRepository {
         return db.sql("""
                 SELECT h.id, h.tipo_evento, autor.nome AS autor, h.descricao, h.justificativa,
                        COALESCE(ro.data_hora_informada, ri.data_hora_informada, rr.data_hora_informada,
-                                re.data_hora_informada) AS horario_informado,
+                                re.data_hora_informada, CASE WHEN h.tipo_evento = 'CONCLUSAO' THEN f.data_hora_conclusao END) AS horario_informado,
                        COALESCE(ro.local_ocorrencia, ri.local_ocorrencia) AS local_ocorrencia, re.situacao_encomenda,
                        CASE WHEN ini.evento_id IS NOT NULL OR ro.evento_id IS NOT NULL OR ri.evento_id IS NOT NULL OR rr.evento_id IS NOT NULL
-                              OR re.evento_id IS NOT NULL THEN h.data_hora END AS registro_utc
+                              OR re.evento_id IS NOT NULL OR h.tipo_evento = 'CONCLUSAO' THEN h.data_hora END AS registro_utc
                 FROM historico_execucao_frete h
+                JOIN frete f ON f.id = h.frete_id
                 JOIN usuario autor ON autor.id = h.usuario_autor_id
                 LEFT JOIN rf010_recibo_inicio ini ON ini.evento_id = h.id AND ini.frete_id = h.frete_id
                 LEFT JOIN rf010_recibo_ocorrencia ro ON ro.evento_id = h.id AND ro.frete_id = h.frete_id
@@ -72,7 +73,7 @@ public class ExecucaoFreteRepository {
                 LEFT JOIN rf010_recibo_encerramento re ON re.evento_id = h.id AND re.frete_id = h.frete_id
                 WHERE h.frete_id = :id
                   AND h.tipo_evento IN ('INICIO', 'OCORRENCIA', 'INTERRUPCAO', 'RETOMADA',
-                                        'ENCERRAMENTO_SEM_CONCLUSAO')
+                                        'CONCLUSAO', 'ENCERRAMENTO_SEM_CONCLUSAO')
                 ORDER BY h.id DESC
                 """)
                 .param("id", freteId)
@@ -141,6 +142,38 @@ public class ExecucaoFreteRepository {
                         rs.getString("estado_resultante"), rs.getObject("data_hora_informada", LocalDateTime.class),
                         rs.getString("situacao_encomenda"), rs.getString("local_ocorrencia")))
                 .optional();
+    }
+
+    boolean mesmaConclusao(long id, long autor, LocalDateTime entrega, String nome, String cpf) {
+        return db.sql("""
+                SELECT EXISTS (
+                    SELECT 1 FROM frete WHERE id = :id AND responsavel_registro_conclusao_id = :autor
+                      AND (CAST(:entrega AS timestamp) IS NULL OR data_hora_conclusao = :entrega)
+                      AND nome_destinatario IS NOT DISTINCT FROM :nome
+                      AND cpf_destinatario IS NOT DISTINCT FROM :cpf
+                )
+                """).param("id", id).param("autor", autor)
+                .param("entrega", entrega, java.sql.Types.TIMESTAMP)
+                .param("nome", nome, java.sql.Types.VARCHAR).param("cpf", cpf, java.sql.Types.VARCHAR)
+                .query(Boolean.class).single();
+    }
+
+    void concluir(long id, long autor, LocalDateTime realizadaEm, String nome, String cpf) {
+        db.sql("""
+                UPDATE frete SET status = 'CONCLUIDO', data_hora_conclusao = :realizadaEm,
+                    responsavel_registro_conclusao_id = :autor, nome_destinatario = :nome, cpf_destinatario = :cpf
+                WHERE id = :id
+                """).param("id", id).param("autor", autor).param("realizadaEm", realizadaEm)
+                .param("nome", nome, java.sql.Types.VARCHAR).param("cpf", cpf, java.sql.Types.VARCHAR).update();
+    }
+
+    void notificarConclusao(long id) {
+        db.sql("""
+                INSERT INTO notificacao (titulo, mensagem, usuario_destino_id, frete_id, solicitacao_id)
+                SELECT 'Frete concluído', 'Consulte a conclusão do seu frete.', s.id_passageiro, f.id, s.id
+                FROM frete f JOIN solicitacao_frete s ON s.id = f.solicitacao_id
+                WHERE f.id = :id
+                """).param("id", id).update();
     }
 
     boolean atualizarEstado(Frete frete, String estadoResultante) {

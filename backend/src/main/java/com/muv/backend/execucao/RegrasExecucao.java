@@ -16,6 +16,7 @@ public final class RegrasExecucao {
         OCORRENCIA("EM_EXECUCAO", "EM_EXECUCAO"),
         INTERRUPCAO("EM_EXECUCAO", "INTERROMPIDO"),
         RETOMADA("INTERROMPIDO", "EM_EXECUCAO"),
+        CONCLUSAO("EM_EXECUCAO", "CONCLUIDO"),
         ENCERRAMENTO_SEM_CONCLUSAO("INTERROMPIDO", "ENCERRADO_SEM_CONCLUSAO");
 
         private final String estadoAnterior;
@@ -41,7 +42,7 @@ public final class RegrasExecucao {
         }
 
         public boolean podeConfirmar(Acao acao) {
-            return acao == Acao.INICIO ? motoristaDesignado : podeConsultar();
+            return (acao == Acao.INICIO || acao == Acao.CONCLUSAO) ? motoristaDesignado : podeConsultar();
         }
     }
 
@@ -54,7 +55,7 @@ public final class RegrasExecucao {
         private Long referenciaPara(Acao acao) {
             return switch (acao) {
                 case INICIO -> null;
-                case OCORRENCIA, INTERRUPCAO -> cicloExecucaoId;
+                case OCORRENCIA, INTERRUPCAO, CONCLUSAO -> cicloExecucaoId;
                 case RETOMADA, ENCERRAMENTO_SEM_CONCLUSAO -> interrupcaoId;
             };
         }

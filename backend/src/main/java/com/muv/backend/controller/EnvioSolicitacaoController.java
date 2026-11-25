@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import java.security.Principal;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -39,9 +40,41 @@ public class EnvioSolicitacaoController {
         return new Criada(service.enviar(principal.getName(), envio, estimativa));
     }
 
+    @PostMapping("/encomendas")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Criada enviarEncomenda(@Valid @RequestBody EnvioSolicitacaoService.EnvioEncomenda envio,
+            Principal principal) {
+        return new Criada(service.enviarEncomenda(principal.getName(), envio));
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ProblemDetail rejeitada(ResponseStatusException error) {
         return ProblemDetail.forStatusAndDetail(error.getStatusCode(), error.getReason());
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ProblemDetail camposInvalidos(MethodArgumentNotValidException error) {
+        String detalhe = error.getBindingResult().getFieldErrors().stream()
+                .map(campo -> rotulo(campo.getField()) + ": " + campo.getDefaultMessage())
+                .distinct()
+                .collect(java.util.stream.Collectors.joining(". "));
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detalhe);
+    }
+
+    private static String rotulo(String campo) {
+        return switch (campo) {
+            case "partida" -> "Data e horário de partida";
+            case "descricaoVolumes" -> "Quantidade e descrição dos volumes";
+            case "pesoKg" -> "Peso total (kg)";
+            case "alturaCm" -> "Altura (cm)";
+            case "larguraCm" -> "Largura (cm)";
+            case "profundidadeCm" -> "Profundidade (cm)";
+            case "coleta.nome" -> "Nome do contato de coleta";
+            case "coleta.telefone" -> "Telefone do contato de coleta";
+            case "entrega.nome" -> "Nome do contato de entrega";
+            case "entrega.telefone" -> "Telefone do contato de entrega";
+            default -> campo.replace('.', ' ');
+        };
     }
 
     public record Criada(long id) {}

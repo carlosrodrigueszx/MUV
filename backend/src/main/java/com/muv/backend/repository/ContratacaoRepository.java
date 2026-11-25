@@ -64,7 +64,10 @@ public class ContratacaoRepository {
                 WHERE f.solicitacao_id = ?
                 """, (rs, row) -> new Frete(rs.getLong("id"), rs.getLong("proposta_aceita_id"),
                 rs.getString("nome"), rs.getBigDecimal("valor_atual"), rs.getString("condicoes_atuais"),
-                rs.getString("status"), rs.getObject("criado_em", LocalDateTime.class)),
+                rs.getString("status"), rs.getObject("criado_em", LocalDateTime.class),
+                "CONCLUIDO".equals(rs.getString("status"))
+                        ? new Conclusao(rs.getObject("data_hora_conclusao", LocalDateTime.class),
+                                rs.getString("nome_destinatario")) : null),
                 solicitacao).stream().findFirst();
     }
 

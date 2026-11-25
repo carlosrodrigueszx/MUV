@@ -194,7 +194,7 @@ public class AuthService {
         return new ResponseStatusException(HttpStatus.CONFLICT, "Já existe uma conta com esse e-mail ou CNPJ.");
     }
 
-    static boolean isValidCpf(String cpf) {
+    public static boolean isValidCpf(String cpf) {
         if (!cpf.matches("[0-9]{11}") || cpf.chars().distinct().count() == 1) return false;
         for (int length = 9; length <= 10; length++) {
             int sum = 0;
