@@ -9,7 +9,7 @@ export function Hero() {
           <div className="lg:col-span-6 p-8 sm:p-12 lg:p-14 flex flex-col justify-between">
             <div>
               <p className="text-[11px] font-bold tracking-[0.12em] uppercase text-[#2D6A5A] mb-4">
-                BONS CAMINHOS COMEÇAM JUNTTO
+                BONS CAMINHOS COMEÇAM MUV
               </p>
               <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-extrabold text-slate-900 leading-[1.12] tracking-tight mb-5">
                 Quem quer viajar.
@@ -20,7 +20,7 @@ export function Hero() {
               </h1>
               <p className="text-sm sm:text-[15px] text-slate-600 leading-relaxed mb-8 max-w-md">
                 Encontre veículos com motorista para o seu roteiro ou apresente
-                seus serviços a novos clientes. A juntto aproxima os dois lados
+                seus serviços a novos clientes. A MUV aproxima os dois lados
                 da viagem.
               </p>
 

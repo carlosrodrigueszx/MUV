@@ -119,7 +119,7 @@ export function Footer() {
 
         {/* Barra Inferior */}
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-400 gap-2">
-          <p>© 2026 juntto. Todos os direitos reservados.</p>
+          <p>© 2026 MUV. Todos os direitos reservados.</p>
           <span className="inline-flex items-center gap-1.5">
             <LuGlobe size={13} /> Português (Brasil)
           </span>
