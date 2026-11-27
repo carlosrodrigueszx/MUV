@@ -78,13 +78,7 @@ export default function NotificacoesPage() {
     setError("");
     try {
       await marcarNotificacaoComoLida(id);
-      setCentral((current) => current && ({
-        ...current,
-        naoLidas: Math.max(0, current.naoLidas - 1),
-        itens: filtro === "NAO_LIDAS"
-          ? current.itens.filter((item) => item.id !== id)
-          : current.itens.map((item) => item.id === id ? { ...item, lida: true } : item),
-      }));
+      setCentral(await listarNotificacoes(filtro));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível atualizar a notificação.");
     } finally {
@@ -98,10 +92,7 @@ export default function NotificacoesPage() {
     setError("");
     try {
       await marcarTodasComoLidas();
-      setCentral((current) => current && ({
-        naoLidas: 0,
-        itens: filtro === "NAO_LIDAS" ? [] : current.itens.map((item) => ({ ...item, lida: true })),
-      }));
+      setCentral(await listarNotificacoes(filtro));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível atualizar as notificações.");
     } finally {

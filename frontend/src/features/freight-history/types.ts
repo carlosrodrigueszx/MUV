@@ -12,7 +12,7 @@ export interface FreightProposal {
   id: string;
   provider: string;
   amount: string;
-  status: "Aceita" | "Encerrada";
+  status: "Aceita" | "Enviada" | "Encerrada";
 }
 
 export interface FreightTimelineEvent {
@@ -31,6 +31,7 @@ export interface FreightHistoryRecord {
   month: string;
   agreedValue: string;
   status: FreightStatus;
+  podeDesignar?: boolean;
   request: {
     openedAt: string;
     requestedBy: string;

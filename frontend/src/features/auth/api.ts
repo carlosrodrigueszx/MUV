@@ -1,4 +1,11 @@
 const base = "/api/auth";
+let sessionRevision = 0;
+let cachedSession: { account: Session; expiresAt: number } | undefined;
+
+export function readRecentSession(): Session | undefined {
+  return cachedSession && cachedSession.expiresAt > Date.now()
+    ? cachedSession.account : undefined;
+}
 
 async function ensureOk(response: Response, fallback: string) {
   if (response.ok) return;
@@ -22,13 +29,22 @@ export async function authPost(path: string, data?: object | URLSearchParams) {
   await ensureOk(response, path === "login" && response.status === 401
     ? "E-mail ou senha inválidos."
     : "Não foi possível concluir. Tente novamente.");
+  if (path === "login" || path === "logout" || path === "perfil/autonomo") {
+    sessionRevision += 1;
+    cachedSession = undefined;
+  }
 }
 
-export type Session = { id: number; nome: string; email: string };
+export type Session = { id: number; nome: string; email: string; podeAtivarAutonomo: boolean; prestador: boolean; motorista: boolean; passageiro: boolean; empresa: boolean };
 
-export async function getSession(signal: AbortSignal) {
-  const response = await fetch(`${base}/sessao`, { signal, cache: "no-store" });
-  if (response.status === 401) return null;
-  await ensureOk(response, "Não foi possível verificar sua sessão.");
-  return await response.json() as Session;
+export async function getSession(signal: AbortSignal): Promise<Session | null> {
+  const revision = sessionRevision;
+  const verificationSignal = AbortSignal.any([signal, AbortSignal.timeout(10_000)]);
+  const response = await fetch(`${base}/sessao`, { signal: verificationSignal, cache: "no-store" });
+  if (response.status !== 401) await ensureOk(response, "Não foi possível verificar sua sessão.");
+  const account = response.status === 401 ? null : await response.json() as Session;
+  verificationSignal.throwIfAborted();
+  if (revision !== sessionRevision) return getSession(signal);
+  cachedSession = account ? { account, expiresAt: Date.now() + 60_000 } : undefined;
+  return account;
 }

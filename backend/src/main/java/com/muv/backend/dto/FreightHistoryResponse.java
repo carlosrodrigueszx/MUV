@@ -11,6 +11,7 @@ public record FreightHistoryResponse(
         String month,
         String agreedValue,
         String status,
+        boolean podeDesignar,
         RequestDetails request,
         List<ProposalDetails> proposals,
         List<TimelineEvent> timeline) {

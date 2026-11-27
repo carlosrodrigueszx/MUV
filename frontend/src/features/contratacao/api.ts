@@ -34,6 +34,7 @@ export type Detalhe = {
     condicoes: string | null;
     contratadoEm: string;
     status: string;
+    conclusao?: { realizadaEm: string; nomeRecebedor: string | null };
   };
   outrasPropostas: Proposta[];
 };

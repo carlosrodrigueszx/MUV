@@ -159,3 +159,6 @@ docs/testes/
 # Fixtures SQL locais de RF005
 backend/src/test/resources/rf005-test-data.sql
 backend/src/test/resources/rf005-test-cleanup.sql
+
+openspec
+Documento - Figma, Modelos e Arquitetura do Software.md

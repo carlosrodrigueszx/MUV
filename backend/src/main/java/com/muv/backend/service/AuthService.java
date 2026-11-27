@@ -1,6 +1,7 @@
 package com.muv.backend.service;
 
 import com.muv.backend.dto.AuthRequests.CompanyRegistration;
+import com.muv.backend.dto.AuthRequests.IndependentActivation;
 import com.muv.backend.dto.AuthRequests.IndependentRegistration;
 import com.muv.backend.dto.AuthRequests.Registration;
 import com.muv.backend.dto.AuthRequests.Reset;
@@ -11,6 +12,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -26,6 +28,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
+    private static final Duration RESET_VALIDITY = Duration.ofMinutes(30);
+    private static final Duration RESET_RESEND_INTERVAL = Duration.ofMinutes(1);
+
     private final AuthRepository accounts;
     private final PassengerPrivacy privacy;
     private final PasswordEncoder passwords;
@@ -78,11 +83,28 @@ public class AuthService {
     public void registerIndependent(IndependentRegistration request) {
         long id = insertPassengerAccount(request.conta());
         try {
-            accounts.insertProvider(id);
-            accounts.insertIndependent(id, privacy.encrypt(request.cnh() + "\n" + request.categoriaCnh(), id));
+            addIndependentProfile(id, request.cnh(), request.categoriaCnh());
         } catch (DuplicateKeyException exception) {
             throw duplicateRegistration();
         }
+    }
+
+    @Transactional
+    public void activateIndependent(String email, IndependentActivation request) {
+        long id = accounts.findAccount(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED)).id();
+        accounts.lockAccount(id);
+        if (!accounts.canActivateIndependent(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Esta conta não pode ativar um novo perfil de prestador autônomo.");
+        }
+        addIndependentProfile(id, request.cnh(), request.categoriaCnh());
+    }
+
+    private void addIndependentProfile(long id, String license, String category) {
+        String encryptedLicense = privacy.encrypt(license + "\n" + category, id);
+        accounts.insertProvider(id);
+        accounts.insertIndependent(id, encryptedLicense);
     }
 
     private long insertPassengerAccount(Registration request) {
@@ -115,11 +137,15 @@ public class AuthService {
         accounts.findAccount(normalizeEmail(email)).ifPresent(account -> {
             accounts.lockAccount(account.id());
             LocalDateTime now = LocalDateTime.now(clock);
+            // Recent links remain valid when a repeat request arrives within the resend interval.
+            if (accounts.hasActiveResetExpiringAfter(account.id(), now.plus(RESET_VALIDITY).minus(RESET_RESEND_INTERVAL))) {
+                return;
+            }
             accounts.invalidateResets(account.id(), now);
             byte[] bytes = new byte[32];
             random.nextBytes(bytes);
             String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-            accounts.insertReset(account.id(), digest(token), now.plusMinutes(30));
+            accounts.insertReset(account.id(), digest(token), now.plus(RESET_VALIDITY));
             events.publishEvent(new RecoveryMail(account.email(), token));
         });
     }
@@ -168,7 +194,7 @@ public class AuthService {
         return new ResponseStatusException(HttpStatus.CONFLICT, "Já existe uma conta com esse e-mail ou CNPJ.");
     }
 
-    static boolean isValidCpf(String cpf) {
+    public static boolean isValidCpf(String cpf) {
         if (!cpf.matches("[0-9]{11}") || cpf.chars().distinct().count() == 1) return false;
         for (int length = 9; length <= 10; length++) {
             int sum = 0;

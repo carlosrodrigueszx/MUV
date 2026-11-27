@@ -137,7 +137,7 @@ class PercursoSystemTest {
 
     void conferir(List<String> marcas, List<String> horarios) {
         wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".rf-rota")));
-        wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".leaflet-tile-loaded")));
+        assertTrue(driver.findElements(By.cssSelector(".leaflet-tile")).isEmpty());
         assertEquals(marcas, textos(".rf-pin"));
         assertEquals(horarios, textos(".rf-itinerario time"));
         var js = (JavascriptExecutor) driver;

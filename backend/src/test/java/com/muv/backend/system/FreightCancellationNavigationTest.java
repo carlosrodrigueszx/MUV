@@ -156,7 +156,7 @@ class FreightCancellationNavigationTest {
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("email"))).sendKeys(email);
             driver.findElement(By.name("senha")).sendKeys("TesteRF011!42");
             driver.findElement(By.cssSelector("form button:not([type='button'])")).click();
-            wait.until(ExpectedConditions.urlContains("/cliente/planejar-viagem"));
+            wait.until(ExpectedConditions.urlContains("prestador".equals(profile) ? "/prestador" : "/cliente/planejar-viagem"));
             return driver;
         } catch (RuntimeException error) { driver.quit(); throw error; }
     }

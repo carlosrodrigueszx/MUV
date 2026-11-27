@@ -42,6 +42,11 @@ export function HistoryDetails({ record, cliente }: HistoryDetailsProps) {
                 Ver frete contratado
               </Link>
             )}
+            {!cliente && record.podeDesignar && record.id.startsWith("FR-") && (
+              <Link className="mt-4 inline-block font-semibold text-[#176A5B]" to={`/prestador/fretes/${record.id.slice(3)}/designacao`}>
+                Designar motorista e veículo
+              </Link>
+            )}
             <div className="mt-5 rounded-xl bg-[#E2F1ED] p-4 text-sm text-slate-700">
               <h3 className="font-bold text-[#15584D]">Condições preservadas</h3>
               <p className="mt-1 leading-relaxed">{record.request.preservedConditions}</p>

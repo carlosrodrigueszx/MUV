@@ -55,8 +55,8 @@ export function createFreightHistoryService({
     async list(filters, signal) {
       const query = new URLSearchParams({
         perfil: filters.profile.toUpperCase(),
-        periodo: filters.month,
       });
+      if (filters.month) query.set("periodo", filters.month);
       if (filters.modality !== "todas") query.set("modalidade", filters.modality);
       if (filters.status !== "todas") query.set("situacao", filters.status);
 

@@ -2,6 +2,7 @@ package com.muv.backend.service;
 
 import com.muv.backend.dto.AvaliacaoSolicitacao;
 import java.net.URI;
+import java.math.BigDecimal;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -19,14 +20,14 @@ import tools.jackson.databind.ObjectMapper;
 public class PercursoService {
     public record Coordenada(double longitude, double latitude) {}
     public record Ponto(String endereco, LocalDateTime horario, Coordenada coordenada) {}
-    public record Percurso(List<Ponto> pontos, List<Coordenada> geometria, List<Long> segundosPorTrecho) {}
+    public record Percurso(List<Ponto> pontos, List<Coordenada> geometria, List<Long> segundosPorTrecho, BigDecimal distanciaKm) {}
     private record Geometry(List<Double> coordinates) {}
     private record Properties(String countrycode, String type) {}
     private record Feature(Geometry geometry, Properties properties) {}
     private record Busca(List<Feature> features) {}
     private record Linha(List<List<Double>> coordinates) {}
     private record Trecho(Double duration) {}
-    private record Rota(Linha geometry, List<Trecho> legs) {}
+    private record Rota(Linha geometry, List<Trecho> legs, BigDecimal distance) {}
     private record Rotas(List<Rota> routes) {}
 
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
@@ -52,7 +53,15 @@ public class PercursoService {
         pontos.add(localizar(avaliacao.origem(), avaliacao.partida()));
         for (var parada : avaliacao.paradas()) pontos.add(localizar(parada.endereco(), parada.horario()));
         pontos.add(localizar(avaliacao.destino(), null));
-        var indisponivel = new Percurso(pontos, List.of(), List.of());
+        return consultar(pontos);
+    }
+
+    public BigDecimal distanciaKm(List<String> enderecos) {
+        return consultar(enderecos.stream().map(endereco -> localizar(endereco, null)).toList()).distanciaKm();
+    }
+
+    private Percurso consultar(List<Ponto> pontos) {
+        var indisponivel = new Percurso(pontos, List.of(), List.of(), null);
         if (pontos.stream().anyMatch(p -> p.coordenada() == null)) return indisponivel;
         String locais = pontos.stream().map(Ponto::coordenada)
                 .map(c -> c.longitude() + "," + c.latitude()).collect(Collectors.joining(";"));
@@ -66,7 +75,8 @@ public class PercursoService {
         if (linha.size() < 2 || linha.contains(null)) return indisponivel;
         var segundos = rota.legs().stream().map(t -> t.duration() != null && t.duration() >= 0
                 ? Math.round(t.duration()) : null).toList();
-        return new Percurso(comHorarios(pontos, segundos), linha, segundos);
+        return new Percurso(comHorarios(pontos, segundos), linha, segundos,
+                rota.distance() == null ? null : rota.distance().movePointLeft(3));
     }
 
     static List<Ponto> comHorarios(List<Ponto> pontos, List<Long> segundos) {

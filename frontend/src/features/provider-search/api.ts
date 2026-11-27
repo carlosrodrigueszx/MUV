@@ -1,8 +1,15 @@
 export type FreightModality = "PESSOA" | "ENCOMENDA";
 export type ProviderType = "EMPRESA" | "AUTONOMO";
 
+export interface Municipality {
+  codigo: number;
+  cidade: string;
+  estado: string;
+}
+
 export interface ProviderSearchFilters {
   modalidade?: FreightModality;
+  municipioCodigo?: number;
   cidade?: string;
   estado?: string;
   tipo?: ProviderType;
@@ -15,6 +22,7 @@ export interface ProviderSearchResult {
   tipo: ProviderType;
   modalidadesAutorizadas: FreightModality[];
   regioesAtendidas: Array<{ cidade: string; estado: string }>;
+  cobertura?: { nivel: "DIRETA" | "PROXIMA"; municipio: Municipality };
   veiculosDisponiveis: Array<{
     id: number;
     marca: string;
@@ -24,6 +32,12 @@ export interface ProviderSearchResult {
     capacidadePassageiros: number;
     capacidadeCargaKg: number;
   }>;
+}
+
+export async function loadMunicipalities(signal: AbortSignal): Promise<Municipality[]> {
+  const response = await fetch("/api/prestadores/consulta/municipios", { signal });
+  if (!response.ok) throw new Error("Não foi possível carregar os municípios.");
+  return await response.json() as Municipality[];
 }
 
 export async function searchProviders(

@@ -16,8 +16,12 @@ public final class Contratacao {
 
     public record Comparacao(Solicitacao solicitacao, List<Proposta> propostas, Long freteId) {}
 
+    public record Conclusao(LocalDateTime realizadaEm, String nomeRecebedor) {}
+
     public record Frete(long id, long propostaId, String prestador, BigDecimal valor,
-                       String condicoes, String status, LocalDateTime contratadoEm) {}
+                       String condicoes, String status, LocalDateTime contratadoEm,
+                       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+                       Conclusao conclusao) {}
 
     public record Detalhe(Solicitacao solicitacao, Frete frete, List<Proposta> outrasPropostas) {}
 

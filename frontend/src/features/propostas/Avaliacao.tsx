@@ -2,8 +2,9 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { LuCheck, LuSend, LuShieldCheck, LuX } from "react-icons/lu";
 import { ProviderLayout } from "../../components/layout/ProviderLayout";
-import { ConflitoProposta, avaliar, enviar, obterPercurso, type Rota, type Avaliacao } from "./api";
+import { ConflitoProposta, ReferenciaPropostaAlterada, avaliar, enviar, obterPercurso, type Rota, type Avaliacao } from "./api";
 import { getSession } from "../auth/api";
+import { EstimativaFrete } from "../freight-estimate/EstimativaFrete";
 import { duracao } from "./duracao";
 import "./propostas.css";
 
@@ -16,6 +17,9 @@ const horario = (data: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
+const excede = (valor: number, limite: number | null | undefined) =>
+  limite != null && Number.isFinite(valor) && Math.round(valor * 100) > Math.round(limite * 100);
+
 type Acao = "MANTER" | "AJUSTAR" | "RECUSAR";
 
 export default function PaginaAvaliacao() {
@@ -26,7 +30,6 @@ export default function PaginaAvaliacao() {
 function Detalhe({ id }: { id: string }) {
   const [dados, setDados] = useState<Avaliacao>();
   const [rota, setRota] = useState<Rota | null>();
-  const [totalSolicitacoes, setTotalSolicitacoes] = useState(0);
   const [prestador, setPrestador] = useState("");
   const [erro, setErro] = useState("");
 
@@ -50,14 +53,6 @@ function Detalhe({ id }: { id: string }) {
       .catch((e) => {
         if (!controller.signal.aborted) setErro(e.message);
       });
-    fetch("/api/prestador/solicitacoes?modalidade=TODAS", { signal: controller.signal, cache: "no-store" })
-      .then(async resposta => {
-        if (resposta.ok) {
-          const solicitacoes: { id: number }[] = await resposta.json();
-          setTotalSolicitacoes(solicitacoes.length);
-        }
-      })
-      .catch(() => { /* A avaliação continua disponível quando a contagem falha. */ });
     getSession(controller.signal)
       .then((s) => setPrestador(s?.nome ?? ""))
       .catch(() => {
@@ -78,6 +73,15 @@ function Detalhe({ id }: { id: string }) {
   const numero = /^\d+(?:[.,]\d{1,2})?$/.test(preco)
     ? Number(preco.replace(",", "."))
     : NaN;
+  const limiteProposta = rota?.limiteProposta;
+  const teto = limiteProposta?.teto;
+  const semTetoCalculado = limiteProposta?.ativo === true && teto == null;
+  const ajusteAcimaDoTeto = excede(numero, teto);
+  const ofertaAcimaDoTeto = excede(dados?.valorCliente ?? NaN, teto);
+  const erroTeto = semTetoCalculado
+    ? `Envio indisponível enquanto o teto não puder ser calculado. ${limiteProposta?.motivo ?? ""}`
+    : null;
+
   async function confirmar(tipo: Acao) {
     if (!dados || trava.current) return;
     setErro("");
@@ -90,8 +94,13 @@ function Detalhe({ id }: { id: string }) {
       setErro("Informe um valor positivo com até duas casas decimais.");
       return;
     }
+    if (tipo !== "RECUSAR" && (semTetoCalculado || (tipo === "AJUSTAR" ? ajusteAcimaDoTeto : ofertaAcimaDoTeto))) {
+      setErro(erroTeto ?? (teto != null ? `Informe um valor de até ${reais(teto)}.` : ""));
+      return;
+    }
     const corpo = {
       tipo,
+      versaoEstimativa: limiteProposta?.versao,
       valorRevisado: dados.valorCliente,
       condicoesRevisadas: dados.condicoesCliente,
       novoValor: tipo === "AJUSTAR" ? numero : null,
@@ -113,8 +122,13 @@ function Detalhe({ id }: { id: string }) {
       if (tipo === "RECUSAR")
         setDados({ ...dados, justificativaRecusa: mensagem.trim() });
       else setDados({ ...dados, propostaEnviada: true });
+      window.dispatchEvent(new Event("muv:solicitacao-respondida"));
       modal.current?.close();
     } catch (e) {
+      if (e instanceof ReferenciaPropostaAlterada) {
+        const atualizada = await obterPercurso(id).catch(() => undefined);
+        if (atualizada) setRota(atualizada);
+      }
       if (e instanceof ConflitoProposta) {
         const atual = await avaliar(id).catch(() => undefined);
         if (atual?.propostaEnviada) {
@@ -130,6 +144,9 @@ function Detalhe({ id }: { id: string }) {
     }
   }
 
+  const limiar = rota?.estimativa?.limiarAlerta;
+  const estimado = rota?.estimativa?.valorEstimado;
+  const acimaDoAlerta = excede(numero, limiar);
   const pessoa = dados?.modalidade === "PESSOA";
   const bloqueado = ocupado || dados?.status !== "ABERTA";
   const diferenca =
@@ -139,9 +156,8 @@ function Detalhe({ id }: { id: string }) {
   return (
     <div className="rf007">
       <ProviderLayout
-        pageTitle="Solicitações"
+        pageTitle="Avaliar solicitação"
         activeNavKey="requests"
-        navBadges={{ requests: totalSolicitacoes }}
         organizationName={prestador}
         profileLabel="Prestador"
         isOnline={null}
@@ -179,12 +195,15 @@ function Detalhe({ id }: { id: string }) {
                       <b>
                         {new Date(dados.partida).toLocaleDateString("pt-BR")}
                       </b>
+                      {dados.retornoPrevisto && <small>
+                        Retorno: {new Date(dados.retornoPrevisto).toLocaleString("pt-BR")}
+                      </small>}
                     </div>
                     <div>
                       <small>{pessoa ? "GRUPO E MODALIDADE" : "VOLUMES"}</small>
                       <b>
                         {pessoa
-                          ? dados.passageiros + " pessoas"
+                          ? `${dados.passageiros} ${dados.passageiros === 1 ? "pessoa" : "pessoas"}`
                           : dados.volumes}
                       </b>
                     </div>
@@ -255,6 +274,14 @@ function Detalhe({ id }: { id: string }) {
                       </div>
                     )}
                   </div>
+                  {rota?.estimativa
+                    ? <EstimativaFrete estimativa={rota.estimativa} />
+                    : <p>{rota === undefined ? "Carregando estimativa…" : "Valor estimado indisponível."}</p>}
+                  {teto != null && <p>Máximo permitido · {reais(teto)}</p>}
+                  {ofertaAcimaDoTeto && <p>A oferta do cliente ultrapassa o máximo. Envie outro valor dentro do limite.</p>}
+                  {erroTeto && <p role="status">{erroTeto}</p>}
+                  {!ofertaAcimaDoTeto && excede(dados.valorCliente ?? NaN, limiar) && limiar != null
+                    && <p>A oferta do cliente está acima do limiar de referência de {reais(limiar)}.</p>}
                   <p>{dados.condicoesCliente}</p>
                   <aside>
                     <LuShieldCheck /> Considere a espera e os pedidos especiais.
@@ -272,13 +299,15 @@ function Detalhe({ id }: { id: string }) {
                 >
                   Recusar
                 </button>
-                <button disabled={bloqueado} onClick={() => abrir("AJUSTAR")}>
+                <button disabled={bloqueado || semTetoCalculado} onClick={() => abrir("AJUSTAR")}>
                   Fazer contraproposta
                 </button>
                 <button
                   className="rf-principal"
                   disabled={
                     bloqueado ||
+                    semTetoCalculado ||
+                    ofertaAcimaDoTeto ||
                     dados.valorCliente == null ||
                     !dados.condicoesCliente?.trim()
                   }
@@ -357,9 +386,15 @@ function Detalhe({ id }: { id: string }) {
                         inputMode="decimal"
                         required
                         value={preco}
+                        aria-invalid={ajusteAcimaDoTeto}
+                        aria-describedby={teto != null ? "rf-teto-proposta" : undefined}
                         onChange={(e) => setPreco(e.target.value)}
                       />
                     </label>
+                    {teto != null && <p id="rf-teto-proposta" role="status">
+                      {ajusteAcimaDoTeto ? `Valor acima do máximo permitido de ${reais(teto)}.` : `Máximo permitido · ${reais(teto)}`}
+                    </p>}
+                    {erroTeto && <p role="status">{erroTeto}</p>}
                     <small>
                       Inclua combustível, pedágios e seus adicionais.
                     </small>
@@ -377,6 +412,14 @@ function Detalhe({ id }: { id: string }) {
                 {acao === "AJUSTAR" && (
                   <>
                     <small>{mensagem.length}/500</small>
+                    {estimado != null && Number.isFinite(numero) && numero > 0 && (
+                      <p>Diferença em relação ao valor estimado · {reais(numero - estimado)}</p>
+                    )}
+                    {limiar != null && !ajusteAcimaDoTeto && (
+                      <p role="status">{acimaDoAlerta
+                        ? `Valor acima do limiar de referência de ${reais(limiar)}. Explique os custos adicionais na justificativa.`
+                        : `Limiar de alerta · ${reais(limiar)}`}</p>
+                    )}
                     {diferenca != null && (
                       <div className="rf-linha">
                         <small>Ajuste em relação à proposta do cliente</small>
@@ -406,7 +449,8 @@ function Detalhe({ id }: { id: string }) {
                   >
                     Voltar à avaliação
                   </button>
-                  <button disabled={ocupado} className="rf-principal">
+                  <button disabled={ocupado || (acao === "AJUSTAR" && (ajusteAcimaDoTeto || semTetoCalculado))}
+                    className="rf-principal">
                     <LuSend />
                     {acao === "RECUSAR"
                       ? "Confirmar recusa"

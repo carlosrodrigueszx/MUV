@@ -10,6 +10,7 @@ export interface TripCriteria {
 
 export interface TripNavigationState {
   trip?: TripCriteria;
+  prestadorId?: number;
 }
 
 export function validateTrip(form: FormData, roundTrip: boolean, now = new Date()) {

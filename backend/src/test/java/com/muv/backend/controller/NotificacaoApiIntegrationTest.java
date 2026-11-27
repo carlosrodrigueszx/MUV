@@ -38,9 +38,9 @@ class NotificacaoApiIntegrationTest {
 
     @Test
     void listaSomenteDoDestinatarioComContextoAutorizado() throws Exception {
-        inserir(914001, "Proposta recebida", "Você recebeu uma proposta.", null, 914101, false,
+        inserir(914001, "Proposta recebida", "Você recebeu uma proposta.", null, 914101L, false,
                 LocalDateTime.of(2026, 11, 20, 10, 0));
-        inserir(914002, "Contratação confirmada", "O cliente aceitou sua proposta.", 914301, 914102, false,
+        inserir(914002, "Contratação confirmada", "O cliente aceitou sua proposta.", 914301L, 914102L, false,
                 LocalDateTime.of(2026, 11, 20, 11, 0));
 
         mvc.perform(get("/api/notificacoes").session(sessao("cliente-rf014@example.test")))
@@ -65,15 +65,23 @@ class NotificacaoApiIntegrationTest {
 
     @Test
     void marcaUmaOuTodasSomenteParaContaAutenticada() throws Exception {
-        long clienteNaoLida = inserir(914001, "Proposta recebida", "Nova proposta.", null, 914101, false,
+        long clienteNaoLida = inserir(914001, "Proposta recebida", "Nova proposta.", null, 914101L, false,
                 LocalDateTime.of(2026, 11, 20, 10, 0));
-        inserir(914001, "Frete concluído", "O frete foi concluído.", 914301, 914102, false,
+        inserir(914001, "Frete concluído", "O frete foi concluído.", 914301L, 914102L, false,
                 LocalDateTime.of(2026, 11, 20, 11, 0));
         long prestadorNaoLida = inserir(914002, "Contratação confirmada", "Frete contratado.", 914301,
-                914102, false, LocalDateTime.of(2026, 11, 20, 12, 0));
+                914102L, false, LocalDateTime.of(2026, 11, 20, 12, 0));
 
         var session = sessao("cliente-rf014@example.test");
         var csrf = csrf(session);
+        mvc.perform(patch("/api/notificacoes/{id}/leitura", prestadorNaoLida)
+                        .session(session).header(csrf.header, csrf.token))
+                .andExpect(status().isNoContent());
+        assertEquals(0, readFlag(prestadorNaoLida));
+        mvc.perform(patch("/api/notificacoes/{id}/leitura", clienteNaoLida).session(session))
+                .andExpect(status().isForbidden());
+        assertEquals(1, readFlag(clienteNaoLida));
+
         mvc.perform(patch("/api/notificacoes/{id}/leitura", clienteNaoLida)
                         .session(session).header(csrf.header, csrf.token))
                 .andExpect(status().isNoContent());
@@ -84,7 +92,7 @@ class NotificacaoApiIntegrationTest {
         mvc.perform(patch("/api/notificacoes/leitura").session(session).header(csrf.header, csrf.token))
                 .andExpect(status().isNoContent());
         assertEquals(0, unreadCount(914001));
-        assertEquals(1, readFlag(prestadorNaoLida));
+        assertEquals(0, readFlag(prestadorNaoLida));
 
         mvc.perform(get("/api/notificacoes").session(session).param("filtro", "INVALIDO"))
                 .andExpect(status().isBadRequest());

@@ -1,4 +1,5 @@
 import React from "react";
+import PortalOverview from "../pages/PortalOverview";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import {
   AccountPage,
@@ -7,6 +8,7 @@ import {
   RegisterPage,
   ResetPage,
 } from "../features/auth/AuthPages";
+import AcompanhamentoExecucaoPage from "../features/execucao/AcompanhamentoExecucaoPage";
 import FreightCancellationPage from "../features/freight-cancellation/FreightCancellationPage";
 import PaginaAvaliacao from "../features/propostas/Avaliacao";
 import Disponiveis from "../features/solicitacoes/Disponiveis";
@@ -35,9 +37,15 @@ export const Router: React.FC = () => {
         <Route path="/cadastro" element={<RegisterPage />} />
         <Route path="/recuperar-senha" element={<RecoveryPage />} />
         <Route path="/redefinir-senha" element={<ResetPage />} />
+        <Route path="/fretes/:freteId/execucao" element={<AcompanhamentoExecucaoPage />} />
         <Route path="/fretes/:freteId/cancelar" element={<FreightCancellationPage />} />
         <Route path="/conta" element={<AccountPage />} />
         <Route path="/prestador/solicitacoes/:id/avaliacao" element={<PaginaAvaliacao />} />
+        <Route path="/prestador" element={<PortalOverview />} />
+        <Route path="/motorista" element={<PortalOverview driver />} />
+        <Route path="/motorista/solicitacoes" element={<Disponiveis />} />
+        <Route path="/motorista/solicitacoes/:id/avaliacao" element={<PaginaAvaliacao />} />
+        <Route path="/motorista/veiculos" element={<Vehicles />} />
         <Route path="/prestador/solicitacoes" element={<Disponiveis />} />
         <Route path="/prestador/veiculos" element={<Vehicles />} />
         <Route path="/prestador/motoristas" element={<DriverLinking />} />
@@ -46,6 +54,7 @@ export const Router: React.FC = () => {
         <Route path="/prestador/achados-perdidos/novo" element={<RegistrarAchadoPage />} />
         <Route path="/motorista/achados-perdidos" element={<AchadosPerdidosPage />} />
         <Route path="/motorista/achados-perdidos/novo" element={<RegistrarAchadoPage />} />
+        <Route path="/prestador/fretes" element={<FreightHistory fretesEmpresa />} />
         <Route path="/prestador/fretes/:id/designacao" element={<DesignarRecursosPage />} />
         <Route path="/prestador/fretes/:id/substituicao" element={<SubstituirRecursosPage />} />
         <Route path="/cliente/solicitacoes/:id/propostas" element={<CompararPropostas />} />
@@ -53,6 +62,7 @@ export const Router: React.FC = () => {
         <Route path="/cliente/historico" element={<FreightHistory />} />
         <Route path="/cliente/notificacoes" element={<NotificacoesPage />} />
         <Route path="/prestador/notificacoes" element={<NotificacoesPage />} />
+        <Route path="/motorista/notificacoes" element={<NotificacoesPage />} />
       </Routes>
     </BrowserRouter>
   );

@@ -118,7 +118,7 @@ function DesignarRecursos({ id }: { id: string }) {
               <label className="text-xs font-semibold text-[#637479]">Motorista vinculado *
                 <select className={campo} value={motoristaId} disabled={enviando} onChange={evento => setMotoristaId(evento.target.value)}>
                   <option value="">Selecione um motorista</option>
-                  {dados.motoristas.map(item => <option value={item.id} key={item.id}>{item.nome} · Verificado</option>)}
+                  {dados.motoristas.map(item => <option value={item.id} key={item.id}>{item.nome}</option>)}
                 </select>
               </label>
               <label className="text-xs font-semibold text-[#637479]">Veículo *
@@ -149,7 +149,7 @@ function DesignarRecursos({ id }: { id: string }) {
             <h2 className="text-lg font-semibold">Validações do serviço</h2>
             <ul className="mt-4 grid gap-2 text-sm text-[#637479]">
               <li>✓ Prestador responsável pelo frete</li>
-              <li>{motoristaId ? "✓ Motorista vinculado e verificado" : "— Motorista ainda não selecionado"}</li>
+              <li>{motoristaId ? "✓ Motorista elegível selecionado" : "— Motorista ainda não selecionado"}</li>
               <li>{veiculo?.compativel ? "✓ Veículo compatível" : "— Veículo compatível ainda não selecionado"}</li>
               <li>{dados.modalidade === "PESSOA" ? `Capacidade necessária: ${dados.quantidadePessoas ?? 0} passageiro(s)` : `Carga necessária: ${dados.pesoEstimadoKg ?? 0} kg`}</li>
             </ul>
@@ -231,7 +231,7 @@ function SubstituirRecursos({ id }: { id: string }) {
             <label className="text-xs font-semibold text-[#637479]">Novo motorista *
               <select className={campo} value={motoristaId} disabled={enviando} onChange={evento => setMotoristaId(evento.target.value)}>
                 <option value="">Selecione um motorista</option>
-                {dados.motoristas.map(item => <option value={item.id} key={item.id}>{item.nome} · Vinculado e verificado</option>)}
+                {dados.motoristas.map(item => <option value={item.id} key={item.id}>{item.nome}</option>)}
               </select>
             </label>
             <label className="text-xs font-semibold text-[#637479]">Novo veículo *

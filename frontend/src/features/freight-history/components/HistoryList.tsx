@@ -37,7 +37,7 @@ export function HistoryList({ records, selectedId, onSelect }: HistoryListProps)
                 type="button"
                 aria-pressed={selectedId === record.id}
                 onClick={() => onSelect(record)}
-                className={`grid w-full grid-cols-1 gap-2 rounded-xl border px-3 py-3 text-left text-sm transition md:grid-cols-5 md:items-center md:gap-4 md:border-transparent ${
+                className={`grid w-full cursor-pointer grid-cols-1 gap-2 rounded-xl border px-3 py-3 text-left text-sm transition md:grid-cols-5 md:items-center md:gap-4 md:border-transparent ${
                   selectedId === record.id
                     ? "border-[#176A5B]/30 bg-[#EDF5F3]"
                     : "border-transparent bg-[#F4F6F7] hover:bg-slate-100"
@@ -58,7 +58,7 @@ export function HistoryList({ records, selectedId, onSelect }: HistoryListProps)
             <button
               type="button"
               onClick={() => document.getElementById("freight-details")?.scrollIntoView({ behavior: "smooth" })}
-              className="mt-4 rounded-lg border border-slate-200 px-4 py-2.5 text-xs font-bold text-[#176A5B] transition hover:bg-slate-50"
+              className="mt-4 cursor-pointer rounded-lg border border-slate-200 px-4 py-2.5 text-xs font-bold text-[#176A5B] transition hover:bg-slate-50"
             >
               Ver detalhes de {selectedRecord.id}
             </button>

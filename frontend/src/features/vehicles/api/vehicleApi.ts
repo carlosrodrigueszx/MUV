@@ -37,10 +37,25 @@ function toVehicle(vehicle: VehicleResponse): Vehicle {
 }
 
 async function responseError(response: Response): Promise<Error> {
-  const body = await response.json().catch(() => null) as
-    | { detail?: string; message?: string }
-    | null;
-  return new Error(body?.detail ?? body?.message ?? "Não foi possível concluir a operação.");
+  const raw = await response.text().catch(() => "");
+  if (response.status === 403 && raw.trim() === "Invalid CORS request") {
+    return new Error("HTTP 403: o backend recusou a origem do frontend (CORS).");
+  }
+
+  let detail: string | undefined;
+  try {
+    const body = JSON.parse(raw) as { detail?: string; message?: string } | null;
+    detail = body?.detail ?? body?.message;
+  } catch {
+    // Some server and proxy errors have no JSON response.
+  }
+
+  if (detail) return new Error(detail);
+  if (response.status === 401) return new Error("Sessão expirada (HTTP 401). Entre novamente.");
+  if (response.status === 403) {
+    return new Error("A API recusou a operação (HTTP 403). Entre novamente e tente cadastrar.");
+  }
+  return new Error(`Não foi possível concluir a operação (HTTP \${response.status}).`);
 }
 
 async function csrf(): Promise<CsrfResponse> {

@@ -10,15 +10,20 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.support.TransactionOperations;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class PropostaServiceTest {
     final PropostaRepository repo = mock(PropostaRepository.class);
     final ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
-    final PropostaService service = new PropostaService(repo, new NotificacaoInternaService(publisher));
+    final EstimativaFreteService estimativas = mock(EstimativaFreteService.class);
+    final PercursoService percurso = mock(PercursoService.class);
+    final NotificacaoInternaService notificacoes = new NotificacaoInternaService(publisher);
+    final PropostaService service = new PropostaService(repo, notificacoes, estimativas, percurso, TransactionOperations.withoutTransaction());
     final BigDecimal original = new BigDecimal("315.78");
     final UUID chave = UUID.randomUUID();
 
@@ -28,12 +33,86 @@ class PropostaServiceTest {
 
     void preparar(String status, boolean bloquear, BigDecimal preco, boolean propostaEnviada) {
         var detalhe = new AvaliacaoSolicitacao(9, "PESSOA", status, "Cliente", null, "A", "B", 3,
-                null,null,null,null,null,preco,"Pedágios inclusos",null,List.of(),null,null,null,null,propostaEnviada);
+                null,null,null,null,null,preco,"Pedágios inclusos",null,List.of(),null,null,null,null,propostaEnviada,null);
+        when(repo.consultar(9,4,false)).thenReturn(Optional.of(new PropostaRepository.Contexto(detalhe,18)));
         when(repo.consultar(9,4,bloquear)).thenReturn(Optional.of(new PropostaRepository.Contexto(detalhe,18)));
     }
 
     RespostaPrestador resposta(RespostaPrestador.Tipo tipo, BigDecimal valor, String motivo) {
         return new RespostaPrestador(tipo,original,"Pedágios inclusos",valor,motivo,chave);
+    }
+
+    @Test void aceitaValorExatamenteNoTeto() {
+        prepararTeto(new BigDecimal("204.30"), "referencia-atual");
+        var valor = new BigDecimal("204.30");
+        service.responder(9, 4, ajustar(valor, "referencia-atual"));
+
+        verify(repo).registrar(9, 4, valor, "Pedágios inclusos\nInclui espera", chave);
+        verify(publisher).publishEvent(any(NotificacaoInternaSolicitada.class));
+    }
+
+    @Test void rejeitaCentavoAcimaDoTetoEAceiteDeOfertaAcimaDoTeto() {
+        prepararTeto(new BigDecimal("204.30"), "referencia-atual");
+        var manter = new RespostaPrestador(RespostaPrestador.Tipo.MANTER, original, "Pedágios inclusos",
+                null, null, chave, "referencia-atual");
+        for (var resposta : List.of(ajustar(new BigDecimal("204.31"), "referencia-atual"), manter)) {
+            var erro = assertThrows(PropostaService.LimitePropostaException.class,
+                    () -> service.responder(9, 4, resposta));
+            assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, erro.getStatusCode());
+            assertEquals("VALOR_ACIMA_DO_TETO", erro.codigo());
+            assertEquals(new BigDecimal("204.30"), erro.teto());
+        }
+        verificarNenhumEnvio();
+    }
+
+    @Test void referenciaMudouOuNaoFoiConfirmada() {
+        prepararTeto(new BigDecimal("204.30"), "referencia-atual");
+        for (var versao : new String[] {"referencia-anterior", null}) {
+            var erro = assertThrows(PropostaService.LimitePropostaException.class,
+                    () -> service.responder(9, 4, ajustar(BigDecimal.TEN, versao)));
+            assertEquals(HttpStatus.CONFLICT, erro.getStatusCode());
+            assertEquals("ESTIMATIVA_DESATUALIZADA", erro.codigo());
+        }
+        verificarNenhumEnvio();
+    }
+
+    @Test void bloqueiaPropostaSemEstimativaEPermiteRecusa() {
+        prepararTeto(null, null);
+        var erro = assertThrows(PropostaService.LimitePropostaException.class,
+                () -> service.responder(9, 4, ajustar(BigDecimal.TEN, null)));
+        assertEquals("ESTIMATIVA_INDISPONIVEL", erro.codigo());
+
+        service.recusar(9, 4, "Sem veículo disponível");
+        verify(repo).recusar(9, 4, "Sem veículo disponível");
+        verificarNenhumEnvio();
+    }
+
+    @Test void reenvioIdempotentePreservaPropostaJaRegistradaMesmoAcimaDoTeto() {
+        prepararTeto(new BigDecimal("204.30"), "referencia-atual");
+        when(repo.envioAnterior(9, 4, chave))
+                .thenReturn(Optional.of(new PropostaRepository.Registro(25, original, "Pedágios inclusos")));
+        assertEquals(25, service.responder(9, 4, resposta(RespostaPrestador.Tipo.MANTER, null, null)));
+        verificarNenhumEnvio();
+    }
+
+    private void prepararTeto(BigDecimal teto, String versao) {
+        preparar("ABERTA", true, original);
+        when(estimativas.tetoAtivo("PESSOA")).thenReturn(true);
+        when(percurso.consultar(any())).thenReturn(new PercursoService.Percurso(
+                List.of(), List.of(), List.of(), null));
+        when(estimativas.limiteProposta(any(), isNull())).thenReturn(
+                new EstimativaFreteService.LimiteProposta(true, teto, versao,
+                        teto == null ? "Distância viária indisponível." : null));
+    }
+
+    private RespostaPrestador ajustar(BigDecimal valor, String versao) {
+        return new RespostaPrestador(RespostaPrestador.Tipo.AJUSTAR, original, "Pedágios inclusos",
+                valor, "Inclui espera", chave, versao);
+    }
+
+    private void verificarNenhumEnvio() {
+        verify(repo, never()).registrar(anyLong(), anyLong(), any(), any(), any());
+        verifyNoInteractions(publisher);
     }
 
     @Test void manterValor() {

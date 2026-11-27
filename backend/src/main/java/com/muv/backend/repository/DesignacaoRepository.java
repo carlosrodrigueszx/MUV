@@ -12,10 +12,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class DesignacaoRepository {
+    @Value("${muv.demo.dispensar-verificacao:false}")
+    private boolean dispensarVerificacao;
+
     private final JdbcClient db;
 
     public DesignacaoRepository(JdbcClient db) {
@@ -104,10 +108,11 @@ public class DesignacaoRepository {
                     SELECT 1 FROM vinculo_motorista
                     WHERE prestador_id = :prestadorId
                       AND motorista_id = :motoristaId
-                      AND status_verificacao = 'VERIFICADO'
+                      AND (status_verificacao = 'VERIFICADO' OR (:dispensarVerificacao AND status_verificacao = 'PENDENTE'))
                 )
                 """)
                 .param("prestadorId", prestadorId)
+                .param("dispensarVerificacao", dispensarVerificacao)
                 .param("motoristaId", motoristaId)
                 .query(Boolean.class)
                 .single();
@@ -381,10 +386,11 @@ public class DesignacaoRepository {
                 FROM vinculo_motorista vm
                 JOIN motorista m ON m.id = vm.motorista_id
                 WHERE vm.prestador_id = :prestadorId
-                  AND vm.status_verificacao = 'VERIFICADO'
+                  AND (vm.status_verificacao = 'VERIFICADO' OR (:dispensarVerificacao AND vm.status_verificacao = 'PENDENTE'))
                 ORDER BY m.nome, m.id
                 """)
                 .param("prestadorId", prestadorId)
+                .param("dispensarVerificacao", dispensarVerificacao)
                 .query((rs, row) -> new MotoristaRecurso(rs.getLong("id"), rs.getString("nome")))
                 .list();
     }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LuArchive, LuCheck, LuPlus, LuSearch } from "react-icons/lu";
+import { LuArchive, LuCheck, LuLayoutDashboard, LuPlus, LuSearch } from "react-icons/lu";
 import { ProviderLayout } from "../../components/layout/ProviderLayout";
 import type { ProviderNavItem } from "../../components/layout/providerNav";
 import { confirmarDevolucao, consultarOpcoesAchado, listarAchados, registrarAchado, type Achado, type OpcoesAchado } from "./api";
@@ -15,9 +15,10 @@ const dataFormatada = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", tim
 function usePortal() {
   const isDriver = useLocation().pathname.startsWith("/motorista/");
   const base = isDriver ? "/motorista/achados-perdidos" : "/prestador/achados-perdidos";
-  const navItems: ProviderNavItem[] = useMemo(() => [{
+  const navItems: ProviderNavItem[] = useMemo(() => [
+    { key: "overview", label: "Visão geral", to: isDriver ? "/motorista" : "/prestador", icon: LuLayoutDashboard }, {
     key: "lost-found", label: "Achados e perdidos", to: base, icon: LuArchive,
-  }], [base]);
+  }], [base, isDriver]);
   return { isDriver, base, navItems };
 }
 

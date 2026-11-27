@@ -175,6 +175,12 @@ export function FreteContratado() {
           <h2 className="text-xl font-semibold">O que acontece agora?</h2>
           <div className="rounded-2xl bg-[#fff3de] p-4 text-sm">
             <p className="font-semibold text-[#925705]">{situacoes[frete.status] ?? frete.status}</p>
+            {frete.conclusao && (
+              <div className="mt-1 space-y-1">
+                <p>Conclusão em {dataHora.format(new Date(frete.conclusao.realizadaEm))} (horário de Fortaleza)</p>
+                {frete.conclusao.nomeRecebedor && <p>Recebido por {frete.conclusao.nomeRecebedor}</p>}
+              </div>
+            )}
             {frete.status === "AGUARDANDO_DESIGNACAO" && <p className="mt-1">O prestador deverá designar um motorista e um veículo compatíveis antes de iniciar o serviço.</p>}
           </div>
           <Link className={primario + " w-fit"} to={historico}>Acompanhar frete</Link>

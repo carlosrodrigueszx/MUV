@@ -2,6 +2,7 @@ package com.muv.backend.repository;
 
 import com.muv.backend.dto.AvaliacaoSolicitacao;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -11,6 +12,9 @@ import java.util.UUID;
 
 @Repository
 public class PropostaRepository {
+    @Value("${muv.demo.dispensar-verificacao:false}")
+    private boolean dispensarVerificacao;
+
     private final JdbcTemplate jdbc;
 
     public PropostaRepository(JdbcTemplate jdbc) {
@@ -36,7 +40,10 @@ public class PropostaRepository {
             LEFT JOIN solicitacao_encomenda e ON e.id=s.id
             WHERE s.id=? AND (s.id_prestador IS NULL OR s.id_prestador=a.id_prestador)
             """;
-        if (bloquear) sql += " FOR UPDATE OF s FOR SHARE OF a";
+        sql = ModalidadesDemonstracao.aplicar(sql, dispensarVerificacao);
+        if (bloquear) {
+            sql += dispensarVerificacao ? " FOR UPDATE OF s" : " FOR UPDATE OF s FOR SHARE OF a";
+        }
         return jdbc.query(sql, (rs, row) -> new Contexto(new AvaliacaoSolicitacao(
                 rs.getLong("id"), rs.getString("modalidade"), rs.getString("status"), rs.getString("nome"),
                 rs.getObject("data_hora_pretendida", LocalDateTime.class), rs.getString("origem"), rs.getString("destino"),
@@ -45,7 +52,7 @@ public class PropostaRepository {
                 rs.getString("instrucoes_entrega"), rs.getBigDecimal("valor_cliente"), rs.getString("condicoes_cliente"), rs.getString("justificativa"), paradas(solicitacao),
                 rs.getString("mapa_caminho"), rs.getBigDecimal("percurso_km"),
                 rs.getObject("deslocamento_minutos", Integer.class), rs.getObject("duracao_minutos", Integer.class),
-                propostaEnviada(solicitacao, prestador)),
+                propostaEnviada(solicitacao, prestador), rs.getObject("retorno_previsto", LocalDateTime.class)),
                 rs.getLong("id_passageiro")), prestador, solicitacao).stream().findFirst();
     }
 
