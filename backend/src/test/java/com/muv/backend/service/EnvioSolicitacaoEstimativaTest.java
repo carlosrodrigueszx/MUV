@@ -25,11 +25,12 @@ class EnvioSolicitacaoEstimativaTest {
     void rejeitaOfertaAbaixoDoPisoAntesDeGravarOuNotificar() {
         var db = mock(JdbcTemplate.class);
         var contas = mock(AuthRepository.class);
+        var notificacoes = mock(NotificacaoInternaService.class);
         var conta = mock(AuthRepository.Account.class);
         when(conta.id()).thenReturn(1L);
         when(contas.findAccount("cliente")).thenReturn(Optional.of(conta));
         when(db.query(anyString(), ArgumentMatchers.<RowMapper<Long>>any(), eq(1L))).thenReturn(List.of(1L));
-        var service = new EnvioSolicitacaoService(db, contas);
+        var service = new EnvioSolicitacaoService(db, contas, notificacoes);
         var endereco = new Endereco("60000-000", "Rua A", "1", "Centro", "Fortaleza", "CE");
         var envio = new Envio(UUID.randomUUID(), 2L, 3L, 4,
                 LocalDateTime.now(ZoneId.of("America/Fortaleza")).plusDays(1), null,
@@ -43,5 +44,6 @@ class EnvioSolicitacaoEstimativaTest {
         assertThat(erro.getReason()).contains("40,00");
         verify(db, never()).queryForObject(anyString(), eq(Long.class), any(Object[].class));
         verify(db, never()).update(anyString(), any(Object[].class));
+        verifyNoInteractions(notificacoes);
     }
 }

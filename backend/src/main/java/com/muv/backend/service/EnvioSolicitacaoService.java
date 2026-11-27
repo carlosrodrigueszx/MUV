@@ -24,10 +24,13 @@ public class EnvioSolicitacaoService {
 
     private final JdbcTemplate db;
     private final AuthRepository accounts;
+    private final NotificacaoInternaService notificacoes;
 
-    public EnvioSolicitacaoService(JdbcTemplate db, AuthRepository accounts) {
+    public EnvioSolicitacaoService(JdbcTemplate db, AuthRepository accounts,
+            NotificacaoInternaService notificacoes) {
         this.db = db;
         this.accounts = accounts;
+        this.notificacoes = notificacoes;
     }
 
     public record Endereco(
@@ -214,10 +217,8 @@ public class EnvioSolicitacaoService {
     }
 
     private void notificarPrestador(long prestador, long id) {
-        db.update("""
-                INSERT INTO notificacao (titulo, mensagem, usuario_destino_id, solicitacao_id)
-                VALUES ('Nova solicitação direcionada', 'Consulte o roteiro e responda à solicitação.', ?, ?)
-                """, prestador, id);
+        notificacoes.notificar(prestador, "Nova solicitação direcionada",
+                "Consulte o roteiro e responda à solicitação.", null, id);
     }
 
     private long gravarEndereco(Endereco endereco) {

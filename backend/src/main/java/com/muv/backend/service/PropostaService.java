@@ -17,13 +17,15 @@ import java.util.Objects;
 @Service
 public class PropostaService {
     private final PropostaRepository propostas;
+    private final NotificacaoInternaService notificacoes;
     private final EstimativaFreteService estimativas;
     private final PercursoService percurso;
     private final TransactionOperations transacoes;
 
-    public PropostaService(PropostaRepository propostas, EstimativaFreteService estimativas,
-            PercursoService percurso, TransactionOperations transacoes) {
+    public PropostaService(PropostaRepository propostas, NotificacaoInternaService notificacoes,
+            EstimativaFreteService estimativas, PercursoService percurso, TransactionOperations transacoes) {
         this.propostas = propostas;
+        this.notificacoes = notificacoes;
         this.estimativas = estimativas;
         this.percurso = percurso;
         this.transacoes = transacoes;
@@ -97,7 +99,8 @@ public class PropostaService {
                     "O teto foi desativado. Revise a avaliação atualizada antes de enviar.", null);
         }
         long id = propostas.registrar(solicitacao, prestador, valor, condicoes, resposta.chaveEnvio());
-        propostas.notificar(contexto.clienteId(), solicitacao);
+        notificacoes.notificar(contexto.clienteId(), "Nova proposta",
+                "Você recebeu uma proposta para sua solicitação.", null, solicitacao);
         return id;
     }
 

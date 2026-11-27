@@ -114,18 +114,27 @@ class FluxoDemonstracaoIntegrationTest {
         var destino = new Endereco("11000-031", "Rua Destino", "31", "Centro", "Santos", "SP");
         var valor = BigDecimal.valueOf(300);
         var condicoes = "Viagem de teste";
-        var solicitacaoId = envio.enviar("cliente909@example.test",
-                new Envio(UUID.randomUUID(), 909002, carro.id(), 4,
+        var pedido = new Envio(UUID.randomUUID(), 909002, carro.id(), 4,
                         LocalDateTime.now(ZoneId.of("America/Fortaleza")).plusDays(1), null,
-                        origem, destino, List.of(), valor, condicoes),
-                new com.muv.backend.service.EstimativaFreteService.Estimativa(
-                        null, null, null, null, null, null, null, null, null, null, null, "Sem referência de teste."));
+                        origem, destino, List.of(), valor, condicoes);
+        var estimativa = new com.muv.backend.service.EstimativaFreteService.Estimativa(
+                null, null, null, null, null, null, null, null, null, null, null, "Sem referência de teste.");
+        var solicitacaoId = envio.enviar("cliente909@example.test", pedido, estimativa);
+        assertThat(envio.enviar("cliente909@example.test", pedido, estimativa)).isEqualTo(solicitacaoId);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM notificacao
+                WHERE usuario_destino_id = 909002 AND solicitacao_id = ? AND titulo = 'Nova solicitação direcionada'
+                """, Integer.class, solicitacaoId)).isEqualTo(1);
 
         assertThat(solicitacoes.listar(909002, "PESSOA", null, null, null))
                 .anyMatch(s -> s.id() == solicitacaoId && s.autorizada());
         var propostaId = propostas.responder(solicitacaoId, 909002,
                 new RespostaPrestador(RespostaPrestador.Tipo.MANTER, valor, condicoes,
                         null, null, UUID.randomUUID()));
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM notificacao
+                WHERE usuario_destino_id = 909001 AND solicitacao_id = ? AND titulo = 'Nova proposta'
+                """, Integer.class, solicitacaoId)).isEqualTo(1);
         assertThat(comparacao.propostas(solicitacaoId))
                 .anyMatch(p -> p.id() == propostaId && p.autorizado());
         var freteId = contratacao.aceitar(solicitacaoId, propostaId, 909001).id();

@@ -92,10 +92,4 @@ public class PropostaRepository {
                 """, Long.class, valor, condicoes, solicitacao, prestador, chave);
     }
 
-    public void notificar(long cliente, long solicitacao) {
-        jdbc.update("""
-                INSERT INTO notificacao(titulo, mensagem, usuario_destino_id, solicitacao_id)
-                VALUES ('Nova proposta', 'Você recebeu uma proposta para sua solicitação.', ?, ?)
-                """, cliente, solicitacao);
-    }
 }

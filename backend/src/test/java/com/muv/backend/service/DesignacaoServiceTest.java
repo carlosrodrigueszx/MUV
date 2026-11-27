@@ -3,6 +3,7 @@ package com.muv.backend.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
@@ -16,16 +17,20 @@ import java.math.BigDecimal;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.server.ResponseStatusException;
 
 class DesignacaoServiceTest {
     private DesignacaoRepository repositorio;
+    private ApplicationEventPublisher publisher;
     private DesignacaoService service;
 
     @BeforeEach
     void configurar() {
         repositorio = mock(DesignacaoRepository.class);
-        service = new DesignacaoService(repositorio, new CompatibilidadeDesignacaoService());
+        publisher = mock(ApplicationEventPublisher.class);
+        service = new DesignacaoService(repositorio, new CompatibilidadeDesignacaoService(),
+                new NotificacaoInternaService(publisher));
     }
 
     @Test
@@ -43,6 +48,7 @@ class DesignacaoServiceTest {
 
         assertStatus(422, () -> service.designar(1L, 10L, comando()));
         verify(repositorio, never()).buscarVeiculoParaValidacao(20L);
+        verify(publisher, never()).publishEvent(any(NotificacaoInternaSolicitada.class));
     }
 
     @Test
@@ -75,6 +81,9 @@ class DesignacaoServiceTest {
         assertThat(resultado.status()).isEqualTo("PRONTO_INICIO");
         assertThat(resultado.revisao()).isEqualTo(1L);
         verify(repositorio).registrarDesignacao(1L, 10L, 30L, 20L, 0L);
+        verify(publisher).publishEvent(new NotificacaoInternaSolicitada(
+                40L, "Designa\u00e7\u00e3o confirmada", "O motorista e o ve\u00edculo do frete foram designados.",
+                1L, null, null));
     }
 
     private void assertVeiculoInvalido(VeiculoRecurso veiculo, String motivo) {

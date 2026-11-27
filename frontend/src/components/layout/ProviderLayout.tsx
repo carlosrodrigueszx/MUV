@@ -2,7 +2,7 @@ import { AccountMenu } from "../../features/auth/AccountMenu";
 import { getSession, readRecentSession, type Session } from "../../features/auth/api";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LuBell, LuChevronRight, LuHeadset, LuRoute } from "react-icons/lu";
+import { LuBell, LuChevronRight, LuClipboardList, LuHeadset, LuRoute } from "react-icons/lu";
 import { Avatar } from "../ui/Avatar";
 import { driverNavItems, providerNavItems, type ProviderNavItem } from "./providerNav";
 
@@ -17,7 +17,6 @@ interface ProviderLayoutProps {
   avatarUrl?: string | null;
   isOnline?: boolean | null;
   onOnlineChange?: (online: boolean) => void;
-  onNotificationsClick?: () => void;
   /** Contadores por `key` do item de navegação (ex.: { requests: 3 }). */
   navBadges?: Record<string, number>;
   navItems?: ProviderNavItem[];
@@ -37,7 +36,6 @@ export function ProviderLayout({
   avatarUrl,
   isOnline = false,
   onOnlineChange,
-  onNotificationsClick,
   navBadges = {},
   navItems = providerNavItems,
   supportHref = "#",
@@ -253,17 +251,17 @@ export function ProviderLayout({
               </span>
             </button>}
             <span className="h-[22px] w-px bg-[#dfe6e7]" />
-            {requestPath && !onNotificationsClick ? (
+            {requestPath && (
               <Link to={requestPath} aria-label={`Solicitações pendentes: ${requestCount}`}
                 className="relative grid size-9 place-items-center rounded-lg hover:bg-[#f5f7f8]">
-                <LuBell size={20} aria-hidden />
+                <LuClipboardList size={20} aria-hidden />
                 {requestCount > 0 && <span className="absolute right-0 top-0 rounded-full bg-[#17695b] px-1 text-[10px] text-white">{requestCount}</span>}
               </Link>
-            ) : (
-              <button type="button" aria-label="Notificações" onClick={onNotificationsClick} className="text-[#1d2d32]">
-                <LuBell size={20} />
-              </button>
             )}
+            <Link to={inDriverPortal ? "/motorista/notificacoes" : "/prestador/notificacoes"}
+              aria-label="Notificações" className="grid size-9 place-items-center rounded-lg hover:bg-[#f5f7f8]">
+              <LuBell size={20} />
+            </Link>
             <AccountMenu session={session} avatarUrl={avatarUrl} />
           </div>
         </header>

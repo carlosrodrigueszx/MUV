@@ -51,6 +51,11 @@ public class VehicleService {
     public VehicleResponse update(String email, long id, VehicleRequest request) {
         long providerId = providerId(email);
         VehicleValues values = values(request);
+        String currentModality = vehicles.findModalityByIdAndProvider(id, providerId)
+                .orElseThrow(VehicleService::notFound);
+        if ("AMBOS".equals(currentModality) && "carga".equals(request.type())) {
+            values = new VehicleValues(values.plate(), "AMBOS", 0, values.cargoCapacity());
+        }
         try {
             if (!vehicles.update(id, providerId, request, values.plate(), values.modality(),
                     values.passengerCapacity(), values.cargoCapacity())) {

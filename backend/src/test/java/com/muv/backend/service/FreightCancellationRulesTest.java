@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -15,7 +16,9 @@ import static org.mockito.Mockito.*;
 
 class FreightCancellationRulesTest {
     private final FreightCancellationRepository repository = mock(FreightCancellationRepository.class);
-    private final FreightCancellationService service = new FreightCancellationService(repository);
+    private final ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+    private final FreightCancellationService service = new FreightCancellationService(repository,
+            new NotificacaoInternaService(publisher));
 
     @ParameterizedTest
     @NullAndEmptySource
@@ -34,8 +37,9 @@ class FreightCancellationRulesTest {
         service.cancel(42, 9, "  Mudança de planos  ");
         verify(repository).markCancelled(42);
         verify(repository).addCancellationEvent(42, 9, "Mudança de planos", cancelledAtUtc);
-        verify(repository).notifyCancellation(42, 7, cancelledAtUtc);
-        verify(repository, never()).notifyCancellation(eq(42L), eq(9L), any());
+        verify(publisher).publishEvent(new NotificacaoInternaSolicitada(7, "Frete cancelado",
+                "O frete FR-42 foi cancelado. Consulte o motivo no registro do cancelamento.",
+                42L, null, cancelledAtUtc));
     }
 
     @ParameterizedTest
@@ -45,6 +49,7 @@ class FreightCancellationRulesTest {
         rejects(409, () -> service.cancel(42, 7, "Motivo"));
         verify(repository).findForUpdate(42);
         verifyNoMoreInteractions(repository);
+        verifyNoInteractions(publisher);
     }
 
     @Test
@@ -53,6 +58,7 @@ class FreightCancellationRulesTest {
         rejects(403, () -> service.cancel(42, 99, "Motivo"));
         verify(repository).findForUpdate(42);
         verifyNoMoreInteractions(repository);
+        verifyNoInteractions(publisher);
     }
 
     @Test
@@ -60,6 +66,7 @@ class FreightCancellationRulesTest {
         rejects(404, () -> service.cancel(42, 7, "Motivo"));
         verify(repository).findForUpdate(42);
         verifyNoMoreInteractions(repository);
+        verifyNoInteractions(publisher);
     }
 
     private void freight(String state) {

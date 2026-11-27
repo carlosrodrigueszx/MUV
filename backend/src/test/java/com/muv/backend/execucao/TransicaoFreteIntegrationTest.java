@@ -79,7 +79,8 @@ class TransicaoFreteIntegrationTest {
         db.sql("DELETE FROM rf010_recibo_retomada WHERE frete_id = 910063").update();
         db.sql("DELETE FROM rf010_recibo_interrupcao WHERE frete_id = 910063").update();
         db.sql("DELETE FROM historico_execucao_frete WHERE frete_id = 910063 AND id > 910074").update();
-        db.sql("DELETE FROM notificacao WHERE frete_id = 910063 AND titulo = 'Frete concluído'").update();
+        db.sql("DELETE FROM notificacao WHERE frete_id = 910063").update();
+        db.sql("DELETE FROM notificacao WHERE frete_id = 910064").update();
         db.sql("ALTER SEQUENCE historico_execucao_frete_id_seq RESTART WITH 910075").update();
         db.sql("""
                 UPDATE frete SET status = 'EM_EXECUCAO', motorista_atual_id = 910011, revisao_designacao = 1,
@@ -318,7 +319,7 @@ class TransicaoFreteIntegrationTest {
                 WHERE frete_id = 910061 AND tipo_evento = 'CANCELAMENTO' AND usuario_autor_id = 910001
                 """).query(Integer.class).single()).isEqualTo(cancelamentos);
         assertThat(db.sql("SELECT count(*) FROM notificacao WHERE frete_id = 910061")
-                .query(Integer.class).single()).isEqualTo(cancelamentos);
+                .query(Integer.class).single()).isEqualTo(inicios * 2 + cancelamentos);
     }
 
     @Test
@@ -329,6 +330,9 @@ class TransicaoFreteIntegrationTest {
                 .replace("}", ", \"localOcorrencia\":\"Km 44\"}");
         var original = enviarComando(rota, motorista, comando, 200).getResponse().getContentAsString();
         assertThat(enviarComando(rota, motorista, comando, 200).getResponse().getContentAsString()).isEqualTo(original);
+        assertThat(db.sql("""
+                SELECT count(*) FROM notificacao WHERE frete_id = 910063 AND titulo = 'Ocorrência registrada'
+                """).query(Long.class).single()).isEqualTo(2);
         enviarComando(rota, motorista, comando.replace("Km 44", "Km 45"), 409);
         mvc.perform(get(ROTA).session(motorista.session())).andExpect(status().isOk())
                 .andExpect(jsonPath("$.eventos[0].localOcorrencia").value("Km 44"))
@@ -337,6 +341,48 @@ class TransicaoFreteIntegrationTest {
         var historico = mvc.perform(get("/api/historico-fretes").param("perfil", "CLIENTE")
                         .session(entrar("cliente").session())).andExpect(status().isOk()).andReturn();
         assertThat(historico.getResponse().getContentAsString()).doesNotContain("Km 44");
+        mvc.perform(get("/api/notificacoes").session(entrar("cliente").session()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.itens.length()").value(1))
+                .andExpect(jsonPath("$.itens[0].titulo").value("Ocorrência registrada"));
+        mvc.perform(get("/api/notificacoes").session(entrar("empresa").session()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.itens.length()").value(1));
+        mvc.perform(get("/api/notificacoes").session(motorista.session()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.itens.length()").value(0));
+        long avisoDoPrestador = db.sql("""
+                SELECT id FROM notificacao
+                WHERE frete_id = 910063 AND usuario_destino_id = 910002 AND titulo = 'Ocorrência registrada'
+                """).query(Long.class).single();
+        var csrf = csrf(motorista.session());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .patch("/api/notificacoes/{id}/leitura", avisoDoPrestador).session(motorista.session())
+                        .header(csrf.cabecalho(), csrf.token()))
+                .andExpect(status().isNoContent());
+        assertThat(db.sql("SELECT lida FROM notificacao WHERE id = :id").param("id", avisoDoPrestador)
+                .query(Boolean.class).single()).isFalse();
+    }
+
+    @Test
+    void notificacaoDoAutonomoFicaPrivadaEOMotoristaVinculadoNaoPodeMarcaLa() throws Exception {
+        long id = db.sql("""
+                INSERT INTO notificacao (titulo, mensagem, usuario_destino_id, frete_id, solicitacao_id)
+                VALUES ('Frete iniciado', 'A execução do frete foi iniciada.', 910007, 910064, 910044)
+                RETURNING id
+                """).query(Long.class).single();
+        mvc.perform(get("/api/notificacoes").session(entrar("autonomo").session()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.itens.length()").value(1))
+                .andExpect(jsonPath("$.itens[0].freteId").value(910064))
+                .andExpect(jsonPath("$.itens[0].acaoUrl").value("/prestador/historico?frete=910064"));
+
+        var motorista = entrar("atual");
+        var csrf = csrf(motorista.session());
+        mvc.perform(get("/api/notificacoes").session(motorista.session()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.itens.length()").value(0));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .patch("/api/notificacoes/{id}/leitura", id).session(motorista.session())
+                        .header(csrf.cabecalho(), csrf.token()))
+                .andExpect(status().isNoContent());
+        assertThat(db.sql("SELECT lida FROM notificacao WHERE id = :id").param("id", id)
+                .query(Boolean.class).single()).isFalse();
     }
 
     @Test
@@ -713,11 +759,12 @@ class TransicaoFreteIntegrationTest {
                 new ComandoTeste(ENCERRAMENTO, dadosEncerramento(UUID.randomUUID(), 910075, true, false)));
     }
 
-    private void conferirSemEscrita(String estado, long eventos) {
+    private void conferirSemEscrita(String estado, long eventos, long notificacoes) {
         assertThat(db.sql("SELECT status FROM frete WHERE id = 910063").query(String.class).single()).isEqualTo(estado);
         assertThat(db.sql("SELECT count(*) FROM historico_execucao_frete WHERE frete_id = 910063")
                 .query(Long.class).single()).isEqualTo(eventos);
-        assertThat(db.sql("SELECT count(*) FROM notificacao WHERE frete_id = 910063").query(Long.class).single()).isZero();
+        assertThat(db.sql("SELECT count(*) FROM notificacao WHERE frete_id = 910063")
+                .query(Long.class).single()).isEqualTo(notificacoes);
     }
 
     @Test
@@ -730,14 +777,14 @@ class TransicaoFreteIntegrationTest {
                     """).param("estado", estado).update();
             for (var cmd : comandosDoCiclo()) {
                 enviarComando(cmd.rota(), motorista, cmd.corpo(), 409);
-                conferirSemEscrita(estado, 2);
+                conferirSemEscrita(estado, 2, 0);
             }
         }
         db.sql("UPDATE frete SET status = 'EM_EXECUCAO', data_hora_conclusao = NULL, responsavel_registro_conclusao_id = NULL WHERE id = 910063").update();
         for (var cmd : comandosDoCiclo()) {
             if (!cmd.rota().equals(RETOMADA) && !cmd.rota().equals(ENCERRAMENTO)) continue;
             enviarComando(cmd.rota(), motorista, cmd.corpo(), 409);
-            conferirSemEscrita("EM_EXECUCAO", 2);
+            conferirSemEscrita("EM_EXECUCAO", 2, 0);
         }
         enviar(motorista, dados(UUID.randomUUID()), 200);
         for (var cmd : comandosDoCiclo()) {
@@ -745,7 +792,7 @@ class TransicaoFreteIntegrationTest {
             for (String invalido : java.util.List.of(cmd.corpo().replace("true", "null"),
                     cmd.corpo().replace("Via liberada", " ").replace("Impossível prosseguir", " "))) {
                 enviarComando(cmd.rota(), motorista, invalido, 400);
-                conferirSemEscrita("INTERROMPIDO", 3);
+                conferirSemEscrita("INTERROMPIDO", 3, 2);
             }
         }
     }
@@ -763,7 +810,8 @@ class TransicaoFreteIntegrationTest {
         try {
             assertThatThrownBy(() -> enviarComando(rota, motorista, comando, 200))
                     .hasRootCauseInstanceOf(org.postgresql.util.PSQLException.class).hasStackTraceContaining("recusar_gravacao");
-            conferirSemEscrita(encerrar ? "INTERROMPIDO" : "EM_EXECUCAO", encerrar ? 3 : 2);
+            conferirSemEscrita(encerrar ? "INTERROMPIDO" : "EM_EXECUCAO", encerrar ? 3 : 2,
+                    encerrar ? 2 : 0);
         } finally {
             db.sql("ALTER TABLE " + tabela + " DROP CONSTRAINT recusar_gravacao").update();
         }
@@ -780,14 +828,14 @@ class TransicaoFreteIntegrationTest {
         for (var cmd : antigos) {
             if (cmd.rota().equals(COMANDO) || cmd.rota().endsWith("/ocorrencias")) {
                 enviarComando(cmd.rota(), motorista, cmd.corpo(), 409);
-                conferirSemEscrita("EM_EXECUCAO", 4);
+                conferirSemEscrita("EM_EXECUCAO", 4, 4);
             }
         }
         enviar(motorista, dados(UUID.randomUUID()).replace("910073", "910076"), 200);
         for (var cmd : antigos) {
             if (cmd.rota().equals(RETOMADA) || cmd.rota().equals(ENCERRAMENTO)) {
                 enviarComando(cmd.rota(), motorista, cmd.corpo(), 409);
-                conferirSemEscrita("INTERROMPIDO", 5);
+                conferirSemEscrita("INTERROMPIDO", 5, 6);
             }
         }
     }
@@ -858,7 +906,13 @@ class TransicaoFreteIntegrationTest {
                 """).query(Long.class).single()).isEqualTo(quantidade);
         assertThat(db.sql("SELECT count(*) FROM rf010_recibo_interrupcao WHERE frete_id = 910063")
                 .query(Long.class).single()).isEqualTo(quantidade);
-        assertThat(db.sql("SELECT count(*) FROM notificacao").query(Long.class).single()).isZero();
+        long eventosNotificaveis = db.sql("""
+                SELECT count(*) FROM historico_execucao_frete
+                WHERE frete_id = 910063 AND id > 910074
+                  AND tipo_evento IN ('INICIO', 'OCORRENCIA', 'INTERRUPCAO', 'RETOMADA', 'ENCERRAMENTO_SEM_CONCLUSAO')
+                """).query(Long.class).single();
+        assertThat(db.sql("SELECT count(*) FROM notificacao WHERE frete_id = 910063")
+                .query(Long.class).single()).isEqualTo(eventosNotificaveis * 2);
     }
 
     private static String dados(UUID chave) {

@@ -38,7 +38,8 @@ class FreightCancellationMigrationTest {
         var repository = new FreightCancellationRepository(db);
         var cancelledAtUtc = LocalDateTime.of(2026, 11, 19, 17, 30);
         repository.addCancellationEvent(11010, 11001, "Teste de IDs integrados", cancelledAtUtc);
-        repository.notifyCancellation(11010, 11002, cancelledAtUtc);
+        new NotificacaoRepository(db).registrar(11002, "Frete cancelado",
+                "O frete foi cancelado.", 11010L, null);
         assertThat(db.sql("SELECT id FROM historico_execucao_frete WHERE tipo_evento = 'CANCELAMENTO'")
                 .query(Long.class).single()).isEqualTo(501L);
         assertThat(db.sql("SELECT id FROM notificacao WHERE titulo = 'Frete cancelado'")

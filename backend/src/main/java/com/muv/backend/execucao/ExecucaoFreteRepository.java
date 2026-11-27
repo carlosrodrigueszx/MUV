@@ -20,13 +20,15 @@ public class ExecucaoFreteRepository {
     }
 
     record Frete(
-            long id, String estado, long revisaoDesignacao, long prestadorId, Long contaMotorista,
+            long id, String estado, long revisaoDesignacao, long prestadorId, long solicitacaoId, long clienteId,
+            Long contaMotorista,
             Long motoristaId, String motorista, Long veiculoId, String veiculo, String placa,
             String modalidade, Integer quantidadePessoas, BigDecimal pesoEstimadoKg) {}
 
     Optional<Frete> consultarFrete(long id) {
         return db.sql("""
                 SELECT f.id, f.status, f.revisao_designacao, f.prestador_responsavel_id,
+                       f.solicitacao_id, s.id_passageiro,
                        m.usuario_id, m.id AS motorista_id, m.nome AS motorista, v.id AS veiculo_id,
                        concat_ws(' ', v.marca, v.modelo) AS veiculo, v.placa,
                        s.modalidade, p.quantidade_pessoas, e.peso_estimado_kg
@@ -41,7 +43,8 @@ public class ExecucaoFreteRepository {
                 .param("id", id)
                 .query((rs, row) -> new Frete(
                         rs.getLong("id"), rs.getString("status"), rs.getLong("revisao_designacao"),
-                        rs.getLong("prestador_responsavel_id"), rs.getObject("usuario_id", Long.class),
+                        rs.getLong("prestador_responsavel_id"), rs.getLong("solicitacao_id"),
+                        rs.getLong("id_passageiro"), rs.getObject("usuario_id", Long.class),
                         rs.getObject("motorista_id", Long.class), rs.getString("motorista"),
                         rs.getObject("veiculo_id", Long.class), rs.getString("veiculo"), rs.getString("placa"),
                         rs.getString("modalidade"), rs.getObject("quantidade_pessoas", Integer.class),
@@ -165,15 +168,6 @@ public class ExecucaoFreteRepository {
                 WHERE id = :id
                 """).param("id", id).param("autor", autor).param("realizadaEm", realizadaEm)
                 .param("nome", nome, java.sql.Types.VARCHAR).param("cpf", cpf, java.sql.Types.VARCHAR).update();
-    }
-
-    void notificarConclusao(long id) {
-        db.sql("""
-                INSERT INTO notificacao (titulo, mensagem, usuario_destino_id, frete_id, solicitacao_id)
-                SELECT 'Frete concluído', 'Consulte a conclusão do seu frete.', s.id_passageiro, f.id, s.id
-                FROM frete f JOIN solicitacao_frete s ON s.id = f.solicitacao_id
-                WHERE f.id = :id
-                """).param("id", id).update();
     }
 
     boolean atualizarEstado(Frete frete, String estadoResultante) {

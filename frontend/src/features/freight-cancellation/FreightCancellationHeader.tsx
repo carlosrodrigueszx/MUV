@@ -48,11 +48,10 @@ export function FreightCancellationHeader({ containerClass, historyRoute, name }
             Trocar perfil
           </button>
           <span aria-hidden="true" className="hidden h-5 w-px bg-[#dfe6e7] lg:block" />
-          <button type="button" aria-label="Notificações"
-            onClick={() => setNotice("A central de notificações ainda não está disponível.")}
+          <Link to="/cliente/notificacoes" aria-label="Notificações"
             className="grid size-9 place-items-center rounded-lg hover:bg-[#f4f6f7] lg:size-6">
             <img src={bellIcon} alt="" width={18} height={18} />
-          </button>
+          </Link>
           <Link to="/conta" aria-label="Minha conta" title={name || "Minha conta"} className="flex items-center gap-3 rounded-lg">
             <span className="grid size-9 place-items-center rounded-full bg-[#e5f2ee] text-xs font-semibold text-[#17695b]">
               {initials || <LuUserRound size={17} aria-hidden="true" />}

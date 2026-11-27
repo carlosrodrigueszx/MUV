@@ -1,6 +1,7 @@
 package com.muv.backend.execucao;
 
 import com.muv.backend.service.AuthService;
+import com.muv.backend.service.NotificacaoInternaService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -16,9 +17,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class ConclusaoFreteService {
     private static final ZoneId FORTALEZA = ZoneId.of("America/Fortaleza");
     private final ExecucaoFreteRepository repositorio;
+    private final NotificacaoInternaService notificacoes;
 
-    public ConclusaoFreteService(ExecucaoFreteRepository repositorio) {
+    public ConclusaoFreteService(ExecucaoFreteRepository repositorio, NotificacaoInternaService notificacoes) {
         this.repositorio = repositorio;
+        this.notificacoes = notificacoes;
     }
 
     public record Comando(Long revisaoDesignacao, Long cicloExecucaoId, LocalDate data,
@@ -74,7 +77,9 @@ public class ConclusaoFreteService {
         }
         repositorio.concluir(frete.id(), autor, realizadaEm, nome, cpf);
         repositorio.gravarEvento(frete, autor, RegrasExecucao.Acao.CONCLUSAO, null);
-        repositorio.notificarConclusao(frete.id());
+        notificacoes.notificar(frete.clienteId(), "Frete concluído",
+                "A conclusão do seu frete foi registrada. Consulte os detalhes do evento no histórico.",
+                frete.id(), frete.solicitacaoId());
     }
 
     private static ResponseStatusException invalido(String mensagem) {

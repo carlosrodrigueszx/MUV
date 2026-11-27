@@ -90,10 +90,4 @@ public class ContratacaoRepository {
                 proposta.valor(), proposta.condicoes());
     }
 
-    public void notificar(long prestador, long solicitacao, long frete) {
-        jdbc.update("""
-                INSERT INTO notificacao (titulo, mensagem, usuario_destino_id, solicitacao_id, frete_id)
-                VALUES ('Contratação confirmada', 'O cliente aceitou sua proposta de frete.', ?, ?, ?)
-                """, prestador, solicitacao, frete);
-    }
 }

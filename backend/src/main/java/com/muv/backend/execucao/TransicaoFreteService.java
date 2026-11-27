@@ -2,6 +2,7 @@ package com.muv.backend.execucao;
 
 import com.muv.backend.execucao.RegrasExecucao.Acao;
 import com.muv.backend.execucao.RegrasExecucao.Contexto;
+import com.muv.backend.service.NotificacaoInternaService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -17,10 +18,13 @@ import org.springframework.web.server.ResponseStatusException;
 public class TransicaoFreteService {
     private final ExecucaoFreteRepository repositorio;
     private final ExecucaoFreteService acompanhamento;
+    private final NotificacaoInternaService notificacoes;
 
-    public TransicaoFreteService(ExecucaoFreteRepository repositorio, ExecucaoFreteService acompanhamento) {
+    public TransicaoFreteService(ExecucaoFreteRepository repositorio, ExecucaoFreteService acompanhamento,
+            NotificacaoInternaService notificacoes) {
         this.repositorio = repositorio;
         this.acompanhamento = acompanhamento;
+        this.notificacoes = notificacoes;
     }
 
     public record Comando(
@@ -108,7 +112,31 @@ public class TransicaoFreteService {
         long eventoId = repositorio.gravarEvento(frete, autorId, acao, comando.texto(acao));
         repositorio.gravarRecibo(freteId, acao, comando.chaveOperacao(), eventoId, vigente,
                 referencia, comando.dataHoraInformada(), comando.situacaoEncomenda(), comando.localOcorrencia());
+        notificarEnvolvidos(frete, acao);
         return new Resultado(eventoId, autorId, vigente.estado(), acao.estadoResultante());
+    }
+
+    private void notificarEnvolvidos(ExecucaoFreteRepository.Frete frete, Acao acao) {
+        String titulo = switch (acao) {
+            case INICIO -> "Frete iniciado";
+            case OCORRENCIA -> "Ocorrência registrada";
+            case INTERRUPCAO -> "Execução interrompida";
+            case RETOMADA -> "Execução retomada";
+            case ENCERRAMENTO_SEM_CONCLUSAO -> "Frete encerrado sem conclusão";
+            default -> throw new IllegalArgumentException("Ação fora do acompanhamento do RF010.");
+        };
+        String mensagem = switch (acao) {
+            case INICIO -> "A execução do frete foi iniciada.";
+            case OCORRENCIA -> "Uma ocorrência foi registrada durante a execução. Consulte o histórico.";
+            case INTERRUPCAO -> "A execução do frete foi interrompida. Consulte o histórico para detalhes.";
+            case RETOMADA -> "A execução do frete foi retomada.";
+            case ENCERRAMENTO_SEM_CONCLUSAO -> "O frete foi encerrado sem conclusão.";
+            default -> throw new IllegalArgumentException("Ação fora do acompanhamento do RF010.");
+        };
+        notificacoes.notificar(frete.clienteId(), titulo, mensagem, frete.id(), frete.solicitacaoId());
+        if (frete.prestadorId() != frete.clienteId()) {
+            notificacoes.notificar(frete.prestadorId(), titulo, mensagem, frete.id(), frete.solicitacaoId());
+        }
     }
 
     private static ResponseStatusException conflito(String mensagem) {

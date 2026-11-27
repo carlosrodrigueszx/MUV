@@ -36,9 +36,7 @@ export default function Vehicles() {
     <ProviderLayout
       pageTitle="Gestão de veículos"
       activeNavKey="vehicles"
-      organizationName="Transportadora MUV"
-      organizationVerified
-      isOnline
+      isOnline={null}
     >
       <div className="flex flex-col gap-7">
         <div className="flex flex-wrap items-center justify-between gap-4">

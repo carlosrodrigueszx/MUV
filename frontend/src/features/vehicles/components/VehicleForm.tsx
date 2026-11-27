@@ -186,6 +186,7 @@ export function VehicleForm({
             name="capacity"
             type="number"
             min="1"
+            step={form.type === "passageiros" ? "1" : "0.01"}
             value={form.capacity}
             onChange={handleChange}
             required

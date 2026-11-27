@@ -38,6 +38,12 @@ public class VehicleRepository {
                 .query(VEHICLE_ROW).optional();
     }
 
+    public Optional<String> findModalityByIdAndProvider(long id, long providerId) {
+        return db.sql("SELECT modalidade FROM veiculo WHERE id = :id AND id_prestador = :providerId")
+                .param("id", id).param("providerId", providerId)
+                .query(String.class).optional();
+    }
+
     public VehicleResponse insert(long providerId, VehicleRequest vehicle, String plate,
             String modality, int passengerCapacity, BigDecimal cargoCapacity) {
         long id = db.sql("""
@@ -60,7 +66,9 @@ public class VehicleRepository {
             String modality, int passengerCapacity, BigDecimal cargoCapacity) {
         int updated = db.sql("""
                 UPDATE veiculo SET modelo = :model, ano = :year, cor = :color,
-                    placa = :plate, capacidade_passageiros = :passengerCapacity,
+                    placa = :plate,
+                    capacidade_passageiros = CASE WHEN :modality = 'AMBOS'
+                        THEN capacidade_passageiros ELSE :passengerCapacity END,
                     capacidade_carga_kg = :cargoCapacity, marca = :brand,
                     modalidade = :modality, descricao = :description
                 WHERE id = :id AND id_prestador = :providerId

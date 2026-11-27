@@ -12,9 +12,12 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class FreightCancellationService {
     private final FreightCancellationRepository repository;
+    private final NotificacaoInternaService notificacoes;
 
-    public FreightCancellationService(FreightCancellationRepository repository) {
+    public FreightCancellationService(FreightCancellationRepository repository,
+                                     NotificacaoInternaService notificacoes) {
         this.repository = repository;
+        this.notificacoes = notificacoes;
     }
 
     public record Confirmation(Details frete, String autorNome, String autorPapel, CancellationEvent registro) {}
@@ -44,8 +47,10 @@ public class FreightCancellationService {
         }
         var cancelledAtUtc = repository.markCancelled(freightId);
         repository.addCancellationEvent(freightId, authorId, reason, cancelledAtUtc);
-        repository.notifyCancellation(freightId,
-                authorId == freight.clienteId() ? freight.prestadorId() : freight.clienteId(), cancelledAtUtc);
+        long recipient = authorId == freight.clienteId() ? freight.prestadorId() : freight.clienteId();
+        notificacoes.notificar(recipient, "Frete cancelado",
+                "O frete FR-" + freightId + " foi cancelado. Consulte o motivo no registro do cancelamento.",
+                freightId, null, cancelledAtUtc);
     }
 
     private void requireParty(long author, long client, long provider) {

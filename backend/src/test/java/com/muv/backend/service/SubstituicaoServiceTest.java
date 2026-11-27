@@ -3,6 +3,8 @@ package com.muv.backend.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,16 +16,20 @@ import java.math.BigDecimal;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.server.ResponseStatusException;
 
 class SubstituicaoServiceTest {
     private DesignacaoRepository repositorio;
+    private ApplicationEventPublisher publisher;
     private DesignacaoService service;
 
     @BeforeEach
     void configurar() {
         repositorio = mock(DesignacaoRepository.class);
-        service = new DesignacaoService(repositorio, new CompatibilidadeDesignacaoService());
+        publisher = mock(ApplicationEventPublisher.class);
+        service = new DesignacaoService(repositorio, new CompatibilidadeDesignacaoService(),
+                new NotificacaoInternaService(publisher));
     }
 
     @Test
@@ -36,13 +42,14 @@ class SubstituicaoServiceTest {
     void rejeitaSubstituicaoDuranteExecucaoAtiva() {
         prepararFrete("EM_EXECUCAO");
         assertStatus(409, () -> service.substituir(1L, 10L, comando(31L, null)));
+        verify(publisher, never()).publishEvent(any(NotificacaoInternaSolicitada.class));
     }
 
     @Test
     void substituiSomenteMotoristaEPreservaVeiculoEmProntoInicio() {
         prepararFrete("PRONTO_INICIO");
         prepararRecursos(31L, 20L);
-        when(repositorio.registrarSubstituicao(1L, 10L, 40L, 31L, 20L, 1L, "Troca de escala"))
+        when(repositorio.registrarSubstituicao(1L, 10L, 31L, 20L, 1L, "Troca de escala"))
                 .thenReturn(2L);
 
         var resultado = service.substituir(1L, 10L, comando(31L, null));
@@ -50,19 +57,50 @@ class SubstituicaoServiceTest {
         assertThat(resultado.status()).isEqualTo("PRONTO_INICIO");
         assertThat(resultado.revisao()).isEqualTo(2L);
         verify(repositorio).registrarSubstituicao(
-                1L, 10L, 40L, 31L, 20L, 1L, "Troca de escala");
+                1L, 10L, 31L, 20L, 1L, "Troca de escala");
+        verify(publisher).publishEvent(new NotificacaoInternaSolicitada(
+                40L, "Recursos do frete atualizados",
+                "O prestador substituiu o motorista ou o ve\u00edculo do seu frete.",
+                1L, null, null));
     }
 
     @Test
     void substituiSomenteVeiculoEPreservaInterrupcao() {
         prepararFrete("INTERROMPIDO");
         prepararRecursos(30L, 21L);
-        when(repositorio.registrarSubstituicao(1L, 10L, 40L, 30L, 21L, 1L, "Troca de escala"))
+        when(repositorio.registrarSubstituicao(1L, 10L, 30L, 21L, 1L, "Troca de escala"))
                 .thenReturn(2L);
 
         var resultado = service.substituir(1L, 10L, comando(null, 21L));
 
         assertThat(resultado.status()).isEqualTo("INTERROMPIDO");
+        verify(publisher).publishEvent(new NotificacaoInternaSolicitada(
+                40L, "Recursos do frete atualizados",
+                "O prestador substituiu o motorista ou o ve\u00edculo do seu frete.",
+                1L, null, null));
+    }
+
+    @Test
+    void solicitaAcordoNotificaClienteSomenteAposRegistrarAcordo() {
+        prepararFrete("PRONTO_INICIO");
+        prepararRecursos(31L, 21L);
+        when(repositorio.buscarVeiculoParaValidacao(20L))
+                .thenReturn(Optional.of(new VeiculoRecurso(20L, 10L, "Fiat", "Ducato",
+                        2024, "RF9A020", "Branca", "ENCOMENDA", true, 0,
+                        new BigDecimal("1200"))));
+        when(repositorio.registrarSolicitacaoAcordo(1L, 10L, 31L, 21L, 1L,
+                new BigDecimal("800.00"), "Nova condição", "Troca de escala"))
+                .thenReturn(81L);
+
+        var resultado = service.substituir(1L, 10L,
+                new ComandoSubstituicao(31L, 21L, "Troca de escala", 1L,
+                        new BigDecimal("800.00"), "Nova condição"));
+
+        assertThat(resultado.solicitacaoAcordoId()).isEqualTo(81L);
+        verify(publisher).publishEvent(new NotificacaoInternaSolicitada(
+                40L, "Nova proposta de alteração do frete",
+                "O prestador solicitou sua aprovação para alterar o frete.",
+                1L, null, null));
     }
 
     private void prepararFrete(String status) {
