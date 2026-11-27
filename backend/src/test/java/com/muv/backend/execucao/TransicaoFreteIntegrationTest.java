@@ -759,11 +759,12 @@ class TransicaoFreteIntegrationTest {
                 new ComandoTeste(ENCERRAMENTO, dadosEncerramento(UUID.randomUUID(), 910075, true, false)));
     }
 
-    private void conferirSemEscrita(String estado, long eventos) {
+    private void conferirSemEscrita(String estado, long eventos, long notificacoes) {
         assertThat(db.sql("SELECT status FROM frete WHERE id = 910063").query(String.class).single()).isEqualTo(estado);
         assertThat(db.sql("SELECT count(*) FROM historico_execucao_frete WHERE frete_id = 910063")
                 .query(Long.class).single()).isEqualTo(eventos);
-        assertThat(db.sql("SELECT count(*) FROM notificacao WHERE frete_id = 910063").query(Long.class).single()).isZero();
+        assertThat(db.sql("SELECT count(*) FROM notificacao WHERE frete_id = 910063")
+                .query(Long.class).single()).isEqualTo(notificacoes);
     }
 
     @Test
@@ -776,14 +777,14 @@ class TransicaoFreteIntegrationTest {
                     """).param("estado", estado).update();
             for (var cmd : comandosDoCiclo()) {
                 enviarComando(cmd.rota(), motorista, cmd.corpo(), 409);
-                conferirSemEscrita(estado, 2);
+                conferirSemEscrita(estado, 2, 0);
             }
         }
         db.sql("UPDATE frete SET status = 'EM_EXECUCAO', data_hora_conclusao = NULL, responsavel_registro_conclusao_id = NULL WHERE id = 910063").update();
         for (var cmd : comandosDoCiclo()) {
             if (!cmd.rota().equals(RETOMADA) && !cmd.rota().equals(ENCERRAMENTO)) continue;
             enviarComando(cmd.rota(), motorista, cmd.corpo(), 409);
-            conferirSemEscrita("EM_EXECUCAO", 2);
+            conferirSemEscrita("EM_EXECUCAO", 2, 0);
         }
         enviar(motorista, dados(UUID.randomUUID()), 200);
         for (var cmd : comandosDoCiclo()) {
@@ -791,7 +792,7 @@ class TransicaoFreteIntegrationTest {
             for (String invalido : java.util.List.of(cmd.corpo().replace("true", "null"),
                     cmd.corpo().replace("Via liberada", " ").replace("Impossível prosseguir", " "))) {
                 enviarComando(cmd.rota(), motorista, invalido, 400);
-                conferirSemEscrita("INTERROMPIDO", 3);
+                conferirSemEscrita("INTERROMPIDO", 3, 2);
             }
         }
     }
@@ -809,7 +810,8 @@ class TransicaoFreteIntegrationTest {
         try {
             assertThatThrownBy(() -> enviarComando(rota, motorista, comando, 200))
                     .hasRootCauseInstanceOf(org.postgresql.util.PSQLException.class).hasStackTraceContaining("recusar_gravacao");
-            conferirSemEscrita(encerrar ? "INTERROMPIDO" : "EM_EXECUCAO", encerrar ? 3 : 2);
+            conferirSemEscrita(encerrar ? "INTERROMPIDO" : "EM_EXECUCAO", encerrar ? 3 : 2,
+                    encerrar ? 2 : 0);
         } finally {
             db.sql("ALTER TABLE " + tabela + " DROP CONSTRAINT recusar_gravacao").update();
         }
@@ -826,14 +828,14 @@ class TransicaoFreteIntegrationTest {
         for (var cmd : antigos) {
             if (cmd.rota().equals(COMANDO) || cmd.rota().endsWith("/ocorrencias")) {
                 enviarComando(cmd.rota(), motorista, cmd.corpo(), 409);
-                conferirSemEscrita("EM_EXECUCAO", 4);
+                conferirSemEscrita("EM_EXECUCAO", 4, 4);
             }
         }
         enviar(motorista, dados(UUID.randomUUID()).replace("910073", "910076"), 200);
         for (var cmd : antigos) {
             if (cmd.rota().equals(RETOMADA) || cmd.rota().equals(ENCERRAMENTO)) {
                 enviarComando(cmd.rota(), motorista, cmd.corpo(), 409);
-                conferirSemEscrita("INTERROMPIDO", 5);
+                conferirSemEscrita("INTERROMPIDO", 5, 6);
             }
         }
     }

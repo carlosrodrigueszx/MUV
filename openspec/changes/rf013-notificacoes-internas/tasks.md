@@ -23,6 +23,6 @@
 
 ## 4. End-to-end verification
 
-- [ ] 4.1 Run the relevant backend tests and frontend build, then verify the key event-to-inbox flows against a controlled database and authenticated sessions.
+- [x] 4.1 Run the relevant backend tests and frontend build, then verify the key event-to-inbox flows against a controlled database and authenticated sessions.
 - [x] 4.2 Recheck authorization and personal-data exposure for customer, autonomous provider, company/cooperative provider, and linked driver accounts; verify linked drivers cannot list or mutate notifications addressed to the responsible provider.
 - [x] 4.3 Review the final Git diff and OpenSpec validation output; verify no unrelated files, existing changes, or other active OpenSpec changes were modified.

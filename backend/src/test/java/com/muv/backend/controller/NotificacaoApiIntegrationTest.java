@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = "selenium.browser=chrome")
 @AutoConfigureMockMvc
 @ActiveProfiles("rf001-local")
 @Transactional
@@ -69,7 +69,7 @@ class NotificacaoApiIntegrationTest {
                 LocalDateTime.of(2026, 11, 20, 10, 0));
         inserir(914001, "Frete concluído", "O frete foi concluído.", 914301L, 914102L, false,
                 LocalDateTime.of(2026, 11, 20, 11, 0));
-        long prestadorNaoLida = inserir(914002, "Contratação confirmada", "Frete contratado.", 914301,
+        long prestadorNaoLida = inserir(914002, "Contratação confirmada", "Frete contratado.", 914301L,
                 914102L, false, LocalDateTime.of(2026, 11, 20, 12, 0));
 
         var session = sessao("cliente-rf014@example.test");
@@ -80,13 +80,13 @@ class NotificacaoApiIntegrationTest {
         assertEquals(0, readFlag(prestadorNaoLida));
         mvc.perform(patch("/api/notificacoes/{id}/leitura", clienteNaoLida).session(session))
                 .andExpect(status().isForbidden());
-        assertEquals(1, readFlag(clienteNaoLida));
+        assertEquals(0, readFlag(clienteNaoLida));
 
         mvc.perform(patch("/api/notificacoes/{id}/leitura", clienteNaoLida)
                         .session(session).header(csrf.header, csrf.token))
                 .andExpect(status().isNoContent());
         assertEquals(1, unreadCount(914001));
-        assertEquals(0, readFlag(clienteNaoLida));
+        assertEquals(1, readFlag(clienteNaoLida));
         assertEquals(0, readFlag(prestadorNaoLida));
 
         mvc.perform(patch("/api/notificacoes/leitura").session(session).header(csrf.header, csrf.token))
